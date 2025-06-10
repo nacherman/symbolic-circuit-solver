@@ -49,6 +49,16 @@ class Element(object):
         self.nets = nets
         self.values = values
 
+    def get_numerical_dc_value(self, param_values: dict):
+        """
+        Returns the concrete numerical DC value of the element (e.g., resistance, voltage, gain)
+        given a dictionary of symbol-to-numerical-value mappings.
+        This method should be overridden by subclasses.
+        """
+        raise NotImplementedError(
+            f"get_numerical_dc_value() is not implemented for {type(self).__name__}"
+        )
+
 
 class VoltageSource(Element):
     """Object with instance of voltage source of a circtuit
@@ -78,6 +88,26 @@ class VoltageSource(Element):
         self.nets = element.paramsl[:-1]
         self.values = [sympy.sympify(vvalue,sympy.abc._clash)]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC voltage of the source.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            # Try to evaluate to a float. This also handles if it's already a number.
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            # This can happen if substitution doesn't resolve all symbols,
+            # or if the expression isn't directly convertible to float.
+            print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
+
 
 class VoltageControlledVoltageSource(VoltageSource):
     """Object with instance of voltage controlled voltage source of a circtuit
@@ -103,6 +133,23 @@ class VoltageControlledVoltageSource(VoltageSource):
         self.nets = element.paramsl[:-1]
         self.values = [sympy.sympify(gain_value,sympy.abc._clash)]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC gain of the VCVS.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert gain of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
+
 
 class CurrentControlledVoltageSource(VoltageSource):
     """Object with instance of current controlled voltage source of a circtuit
@@ -127,6 +174,23 @@ class CurrentControlledVoltageSource(VoltageSource):
         self.names = [name, element.paramsl[-2]]
         self.nets = element.paramsl[:-2]
         self.values = [sympy.sympify(r_value,sympy.abc._clash)]
+
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC transresistance of the CCVS.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert transresistance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
 
 
 class CurrentSource(Element):
@@ -157,6 +221,23 @@ class CurrentSource(Element):
         self.nets = element.paramsl[:-1]
         self.values = [sympy.sympify(ivalue,sympy.abc._clash)]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC current of the source.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
+
 
 class VoltageControlledCurrentSource(CurrentSource):
     """Object with instance of volatage controlled current source of a circtuit
@@ -182,6 +263,23 @@ class VoltageControlledCurrentSource(CurrentSource):
         self.nets = element.paramsl[:-1]
         self.values = [sympy.sympify(gm_value,sympy.abc._clash)]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC transconductance of the VCCS.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert transconductance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
+
 
 class CurrentControlledCurrentSource(CurrentSource):
     """Object with instance of current controlled current source of a circtuit
@@ -206,6 +304,23 @@ class CurrentControlledCurrentSource(CurrentSource):
         self.names = [name, element.paramsl[-2]]
         self.nets = element.paramsl[:-2]
         self.values = [sympy.sympify(ai_value,sympy.abc._clash)]
+
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC current gain of the CCCS.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert current gain of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
 
 
 class PassiveElement(Element):
@@ -249,6 +364,23 @@ class Resistance(PassiveElement):
         """
         return 1.0 / self.values[0]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float | object:
+        """
+        Returns the numerical DC resistance value of the resistor.
+        param_values: A dictionary mapping Sympy symbols to numerical values.
+        """
+        expr = self.values[0]
+        try:
+            if hasattr(expr, 'subs'):
+                substituted_expr = expr.subs(param_values)
+            else:
+                substituted_expr = expr # Already a number or not substitutable
+
+            return float(substituted_expr)
+        except (TypeError, AttributeError, ValueError) as e:
+            print(f"Warning: Could not convert resistance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
+            return substituted_expr
+
 
 class Capacitance(PassiveElement):
     """Object with instance of a capacitance of a circuit.
@@ -285,6 +417,12 @@ class Capacitance(PassiveElement):
         """
         return sympy.symbols('s') * self.values[0]
 
+    def get_numerical_dc_value(self, param_values: dict) -> float:
+        """
+        Returns the DC impedance of a capacitor (infinite).
+        """
+        return float('inf')
+
 
 class Inductance(PassiveElement):
     """Object with instance of a inductance of a circuit.
@@ -320,6 +458,12 @@ class Inductance(PassiveElement):
         """ Calculate the conductance of self
         """
         return 1.0 / (sympy.symbols('s') * self.values[0])
+
+    def get_numerical_dc_value(self, param_values: dict) -> float:
+        """
+        Returns the DC impedance of an inductor (zero).
+        """
+        return 0.0
 
 
 # Dictionary of 1st letter of a name with appriopriate element object

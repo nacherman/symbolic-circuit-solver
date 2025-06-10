@@ -11,7 +11,8 @@ import sympy
 import sympy.abc
 import logging
 
-from . import scs_circuit
+# Defer import of scs_circuit to break potential import cycle
+# from . import scs_circuit
 from . import scs_errors
 
 __author__ = "Tomasz Kniola"
@@ -441,6 +442,7 @@ def add_element(param_d, param_l, name, circuit):
         Function is on the list of function for getNameFunctionFromHead. It adds a element to circuit and returns this
         circuit.
     """
+    from . import scs_circuit # Local import
     circuit.add_element(name, scs_circuit.Element(param_l, param_d))
     return circuit
 
@@ -518,6 +520,7 @@ def add_analysis(param_d, param_l, name, circuit):
         Function is on the list of function for getNameFunctionFromHead. It adds an analysis to circuit and returns this
         circuit.
     """
+    from . import scs_circuit # Local import
     if not circuit.parent:  # Check if top circuit
         circuit.analysisl.append(scs_circuit.Analysis(name, param_l, param_d))
     return circuit
@@ -611,6 +614,9 @@ def parse_file(filename, circuit):
         Takes filename, tries to open the file, read the file line by line, creating circuit on the go from it. 
         Returns circuit. Will return None if any problems occured.
     """
+    # current_cir is the initial TopCircuit object, which should already be an instance of scs_circuit.TopCircuit
+    # No need to import scs_circuit just for type checking current_cir here if parse_file
+    # is always called with a pre-existing circuit object (which it is from SymbolicCircuitProblemSolver).
     current_cir = circuit
     line_number = 1
     try:

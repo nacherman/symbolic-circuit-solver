@@ -3,7 +3,8 @@
     Holds element of circuits after parsing the netlist. 
 """
 from . import scs_errors
-from . import scs_analysis
+# Defer import of scs_analysis to break potential import cycle
+# from . import scs_analysis
 
 import time
 import logging
@@ -101,9 +102,11 @@ class TopCircuit(Circuit):
         for analysis in self.analysisl:
             time1 = time.clock()
             if not created_print_file:
-                with open(results_filename, 'w'):
+                with open(results_filename, 'w'): # Ensure file is created once if any analysis runs
                     created_print_file = True
             try:
+                # Moved import scs_analysis here
+                from . import scs_analysis
                 scs_analysis.analysis_dict[analysis.type](analysis.paramsd, analysis.paramsl, instance, file_prefix)
                 logging.info("Analysis: .%s '%s' performed in: %f s" %
                              (analysis.type, analysis.paramsl[0], time.clock() - time1))
