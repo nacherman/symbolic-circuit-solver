@@ -1,0 +1,120 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>c85e10c3-4fa7-45be-9eac-3019c75546eb</ProjectGuid>
+    <ProjectHome>.</ProjectHome>
+    <StartupFile>symbolic_circuit_solver.py</StartupFile>
+    <SearchPath>
+    </SearchPath>
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <Name>symbolic_circuit_solver</Name>
+    <RootNamespace>symbolic_circuit_solver</RootNamespace>
+    <IsWindowsApplication>True</IsWindowsApplication>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugSymbols>true</DebugSymbols>
+    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="scs.py" />
+    <Compile Include="scs_analysis.py" />
+    <Compile Include="scs_circuit.py" />
+    <Compile Include="scs_elements.py" />
+    <Compile Include="scs_errors.py" />
+    <Compile Include="scs_instance_hier.py" />
+    <Compile Include="scs_parser.py" />
+    <Compile Include="symbolic_circuit_solver.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="examples\" />
+    <Folder Include="examples\10_NC_CTLE\" />
+    <Folder Include="examples\11_Inverting_Amp\" />
+    <Folder Include="examples\12_Non_Inverting_Amp\" />
+    <Folder Include="examples\13_High_Pass_Active_Filter\" />
+    <Folder Include="examples\1_Current_mirror\" />
+    <Folder Include="examples\2_Cascode_current_source\" />
+    <Folder Include="examples\3_Common_source\" />
+    <Folder Include="examples\4_Common_drain\" />
+    <Folder Include="examples\5_Active_load\" />
+    <Folder Include="examples\6_Diff_pair\" />
+    <Folder Include="examples\7_Opamp\" />
+    <Folder Include="examples\8_CTLE\" />
+    <Folder Include="examples\9_Negative_C\" />
+    <Folder Include="examples\library\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="examples\10_NC_CTLE\nc_ctle.log" />
+    <Content Include="examples\10_NC_CTLE\nc_ctle.results" />
+    <Content Include="examples\10_NC_CTLE\nc_ctle.sp" />
+    <Content Include="examples\10_NC_CTLE\nc_ctle_0.png" />
+    <Content Include="examples\10_NC_CTLE\nc_ctle_1.png" />
+    <Content Include="examples\11_Inverting_Amp\inv_amp.log" />
+    <Content Include="examples\11_Inverting_Amp\inv_amp.results" />
+    <Content Include="examples\11_Inverting_Amp\inv_amp.sp" />
+    <Content Include="examples\12_Non_Inverting_Amp\non_inv_amp.log" />
+    <Content Include="examples\12_Non_Inverting_Amp\non_inv_amp.results" />
+    <Content Include="examples\12_Non_Inverting_Amp\non_inv_amp.sp" />
+    <Content Include="examples\13_High_Pass_Active_Filter\activefilter.log" />
+    <Content Include="examples\13_High_Pass_Active_Filter\activefilter.results" />
+    <Content Include="examples\13_High_Pass_Active_Filter\activefilter.sp" />
+    <Content Include="examples\13_High_Pass_Active_Filter\activefilter_0.png" />
+    <Content Include="examples\1_Current_mirror\current_mirror.log" />
+    <Content Include="examples\1_Current_mirror\current_mirror.results" />
+    <Content Include="examples\1_Current_mirror\current_mirror.sp" />
+    <Content Include="examples\2_Cascode_current_source\cascode_current_source.log" />
+    <Content Include="examples\2_Cascode_current_source\cascode_current_source.results" />
+    <Content Include="examples\2_Cascode_current_source\cascode_current_source.sp" />
+    <Content Include="examples\3_Common_source\common_source.log" />
+    <Content Include="examples\3_Common_source\common_source.results" />
+    <Content Include="examples\3_Common_source\common_source.sp" />
+    <Content Include="examples\3_Common_source\common_source_0.png" />
+    <Content Include="examples\4_Common_drain\common_drain.log" />
+    <Content Include="examples\4_Common_drain\common_drain.results" />
+    <Content Include="examples\4_Common_drain\common_drain.sp" />
+    <Content Include="examples\4_Common_drain\common_drain_0.png" />
+    <Content Include="examples\5_Active_load\active_load.log" />
+    <Content Include="examples\5_Active_load\active_load.results" />
+    <Content Include="examples\5_Active_load\active_load.sp" />
+    <Content Include="examples\5_Active_load\active_load_0.png" />
+    <Content Include="examples\6_Diff_pair\diff_pair.log" />
+    <Content Include="examples\6_Diff_pair\diff_pair.results" />
+    <Content Include="examples\6_Diff_pair\diff_pair.sp" />
+    <Content Include="examples\6_Diff_pair\diff_pair_0.png" />
+    <Content Include="examples\7_Opamp\opamp.log" />
+    <Content Include="examples\7_Opamp\opamp.results" />
+    <Content Include="examples\7_Opamp\opamp.sp" />
+    <Content Include="examples\7_Opamp\opamp_0.png" />
+    <Content Include="examples\8_CTLE\ctle.log" />
+    <Content Include="examples\8_CTLE\ctle.results" />
+    <Content Include="examples\8_CTLE\ctle.sp" />
+    <Content Include="examples\8_CTLE\ctle_0.png" />
+    <Content Include="examples\9_Negative_C\negc.log" />
+    <Content Include="examples\9_Negative_C\negc.results" />
+    <Content Include="examples\9_Negative_C\negc.sp" />
+    <Content Include="examples\9_Negative_C\negc_0.png" />
+    <Content Include="examples\9_Negative_C\negc_1.png" />
+    <Content Include="examples\library\mos.sp" />
+    <Content Include="examples\library\opamp.sp" />
+  </ItemGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
+    <PtvsTargetsFile>$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets</PtvsTargetsFile>
+  </PropertyGroup>
+  <Import Condition="Exists($(PtvsTargetsFile))" Project="$(PtvsTargetsFile)" />
+  <Import Condition="!Exists($(PtvsTargetsFile))" Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
+  <!-- Uncomment the CoreCompile target to enable the Build command in
+       Visual Studio and specify your pre- and post-build commands in
+       the BeforeBuild and AfterBuild targets below. -->
+  <!--<Target Name="CoreCompile" />-->
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+</Project>
