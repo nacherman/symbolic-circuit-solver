@@ -1,8 +1,8 @@
 import numpy as np
 import sympy # May be needed for type checking or symbol manipulation
 from .scs_instance_hier import Instance # Assuming Instance is in scs_instance_hier
-from .scs_elements import ( # Reverted to specific imports
-    Resistor, VoltageSource, CurrentSource,
+from .scs_elements import (
+    Resistance, VoltageSource, CurrentSource, # Changed Resistor to Resistance
     VoltageControlledVoltageSource, CurrentControlledVoltageSource,
     VoltageControlledCurrentSource, CurrentControlledCurrentSource
 )
@@ -45,7 +45,7 @@ def build_numerical_mna(instance: Instance, param_values: dict):
         # Controlled sources might have more nets listed (control nets),
         # but their stamping is handled by their specific rules.
         nets_to_consider = element_obj.nets
-        if isinstance(element_obj, Resistor): # Directly connected nets
+        if isinstance(element_obj, Resistance): # Changed Resistor to Resistance
              nets_to_consider = element_obj.nets[:2]
         # TODO: Add similar handling for other element types if nets_to_consider needs specific logic
         # For VoltageSource and CurrentSource, all their listed nets are usually relevant for connections
@@ -96,7 +96,7 @@ def build_numerical_mna(instance: Instance, param_values: dict):
 
         # Order of checks: More specific types first (if we were adding controlled sources),
         # then Resistor, then specific independent sources.
-        if isinstance(element_obj, Resistor):
+        if isinstance(element_obj, Resistance): # Changed Resistor to Resistance
             val = element_obj.get_numerical_dc_value(param_values)
             conductance = 0.0
             if val == float('inf'): # Open circuit
@@ -214,6 +214,39 @@ def solve_dc_numerically_from_instance(instance: Instance, param_values: dict):
         for v_name, index in vsource_to_current_idx.items():
             results_dict[f"I({v_name})"] = solution_vector[index]
 
+        # Calculate and add currents through resistors
+        results_dict['element_currents'] = {}
+        for el_name, element_obj in instance.elements.items():
+            if isinstance(element_obj, Resistance):
+                try:
+                    n1_name, n2_name = element_obj.nets[0], element_obj.nets[1]
+
+                    # Get node voltages (0V for ground node '0')
+                    v1 = results_dict.get(f"V({n1_name})", 0.0) if n1_name != '0' else 0.0
+                    v2 = results_dict.get(f"V({n2_name})", 0.0) if n2_name != '0' else 0.0
+
+                    # Get resistance value
+                    # param_values here is the dict with Sympy symbol keys passed to this function
+                    R_val = element_obj.get_numerical_dc_value(param_values)
+
+                    if R_val is not None and isinstance(R_val, (float, int)):
+                        if R_val == 0:
+                            # Handle ideal wire case if necessary, though current would be undefined/infinite
+                            # Or, if it was approximated by large conductance, this calculation might be okay.
+                            # For now, skip if R_val is exactly 0 to avoid division by zero.
+                            print(f"Warning: Resistor {el_name} has zero resistance. Cannot calculate current via Ohm's law directly. Skipping.")
+                            current = float('nan') # Or some indicator for undefined
+                        else:
+                            current = (v1 - v2) / R_val
+                    else:
+                        print(f"Warning: Could not get valid numerical resistance for {el_name} to calculate current. Value: {R_val}. Skipping.")
+                        current = float('nan') # Or some indicator
+
+                    results_dict['element_currents'][el_name] = current
+                except Exception as e_res_curr:
+                    print(f"Error calculating current for resistor {el_name}: {e_res_curr}")
+                    results_dict['element_currents'][el_name] = float('nan') # Indicate error
+
         return results_dict
     except np.linalg.LinAlgError:
         print(f"Error: Singular matrix (determinant is zero). Circuit may be ill-defined for DC analysis (e.g., floating parts, redundant voltage sources, or unstable). A_matrix:\n{A_num}\nz_vector:\n{z_num}")
@@ -222,55 +255,81 @@ def solve_dc_numerically_from_instance(instance: Instance, param_values: dict):
         print(f"An unexpected error occurred during numerical solution: {e}")
         return None
 
-# Need to import the main solver tool to parse netlists
-from .scs_symbolic_solver_tool import SymbolicCircuitProblemSolver
+# Imports for the new solve_dc_numerically logic
+from . import scs_parser as scs_parser_module # Alias to avoid conflict if Parser class is named same
+from . import scs_circuit
+from . import scs_instance_hier
+from . import scs_errors # For catching specific parsing/instancing errors
 
 def solve_dc_numerically(netlist_path: str, param_values: dict):
     """
-    Parses a netlist file, builds the numerical MNA matrices, solves for DC operating point,
-    and returns node voltages and currents through independent voltage sources.
+    Parses a netlist file using scs_parser and scs_instance_hier,
+    then builds and solves the numerical MNA matrices for DC operating point.
+    Returns node voltages and currents through independent voltage sources.
     """
+    top_circuit_obj = None
+    top_instance = None
     try:
-        # Instantiate the solver tool.
-        solver = SymbolicCircuitProblemSolver(netlist_path=netlist_path)
+        # 1. Create a TopCircuit object
+        top_circuit_obj = scs_circuit.TopCircuit()
 
-        # Trigger parsing and instance creation, which also does base symbolic solve.
-        # This populates solver.top_circuit and solver.top_instance.
-        solver._parse_and_solve_base_circuit() # Call the internal method
+        # 2. Parse the netlist file into this TopCircuit object
+        # parse_file returns the circuit object back if successful, or None on error
+        parsed_circuit = scs_parser_module.parse_file(netlist_path, top_circuit_obj)
+        if not parsed_circuit: # Check if parse_file indicated an error by returning None
+            # parse_file itself should log specific errors via logging module
+            print(f"Error: Failed to parse the netlist file: {netlist_path}. Check logs for details.")
+            return None
+        top_circuit_obj = parsed_circuit # Keep the populated circuit object
 
-        # Now check if top_circuit and top_instance were successfully created
-        if not solver.top_circuit:
-            print(f"Error: SymbolicCircuitProblemSolver failed to parse top_circuit from {netlist_path}.")
+        # 3. Create the top-level instance from the parsed circuit definition
+        # make_top_instance might take param_valsd for default top-level params,
+        # not the runtime param_values used for substitution in MNA.
+        # If param_values are meant for top-level default overrides, this needs clarification.
+        # Assuming param_values are for MNA substitution.
+        # make_top_instance uses the circuit's own parametersd by default.
+        top_instance = scs_instance_hier.make_top_instance(top_circuit_obj)
+        if not top_instance:
+            print("Error: Failed to create top-level instance from parsed circuit.")
             return None
 
-        if not solver.top_instance:
-            print(f"Error: SymbolicCircuitProblemSolver failed to create top_instance from {netlist_path}.")
-            if hasattr(solver, 'last_error') and solver.last_error: # Check if solver tool stores errors
-                 print(f"Solver's last error: {solver.last_error}")
-            return None
+        # Perform basic checks (optional here, but good practice from SymbolicCircuitProblemSolver)
+        # These might raise scs_errors.ScsInstanceError
+        if not top_instance.check_path_to_gnd():
+             print("Circuit check failed: No path to ground for some nets. Cannot solve.")
+             return None # Or raise error
+        if not top_instance.check_voltage_loop():
+             print("Circuit check failed: Voltage loop detected. Cannot solve with basic MNA.")
+             return None # Or raise error
+
+        # Note: The original SymbolicCircuitProblemSolver also calls top_instance.solve() (symbolic) here.
+        # This step is crucial as it populates internal symbolic solution structures within the instance
+        # that element_obj.get_numerical_dc_value might rely on if parameters are expressions
+        # involving node voltages or other symbols solved by the symbolic part.
+        # For a purely numerical MNA from a fully defined netlist (no symbolic params to solve first),
+        # this might not be strictly needed if get_numerical_dc_value only uses .PARAM values.
+        # However, to be safe and align with how elements get their values (which might be symbolic
+        # expressions derived from the circuit's symbolic solution), we should call it.
+        top_instance.solve()
+
 
     except FileNotFoundError:
         print(f"Error: Netlist file not found at {netlist_path}")
         return None
-    except Exception as e: # Catch other parsing related errors
-        print(f"Error during netlist parsing or solver instantiation: {type(e).__name__} - {e}")
+    except scs_errors.ScsParserError as e:
+        print(f"Parser Error: {e}")
+        return None
+    except scs_errors.ScsInstanceError as e:
+        print(f"Instance Error: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred during parsing or instancing: {type(e).__name__} - {e}")
         import traceback
         traceback.print_exc()
         return None
 
-    # This check is now somewhat redundant due to the more specific one above, but kept for safety.
-    if not solver.top_instance:
-        print("Error: Could not create top_instance from netlist (final check).")
-        return None
-
-    # The instance from SymbolicCircuitProblemSolver should be suitable.
-    # It's typically the top-level, and element parameters are evaluated.
-    # `build_numerical_mna` expects symbolic parameters to be substituted by `param_values`
-    # if they are passed in that way. The `SymbolicCircuitProblemSolver` usually creates
-    # `self.top_instance.elements` where values are already Sympy expressions or numbers.
-    # The `param_values` dict passed here would be for overriding or defining symbols
-    # that were part of `.PARAM` lines and are meant to be variable at this stage.
-    return solve_dc_numerically_from_instance(solver.top_instance, param_values)
+    # If all successful, call the instance solver
+    return solve_dc_numerically_from_instance(top_instance, param_values)
 
 if __name__ == '__main__':
     import os
@@ -281,13 +340,11 @@ if __name__ == '__main__':
     # and the package root is symbolic_circuit_solver_master's parent.
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
-    sys.path.insert(0, project_root) # Add parent directory (e.g. /app) to path
+    if project_root not in sys.path: # Avoid adding duplicate paths
+        sys.path.insert(0, project_root)
 
-    # Now that sys.path is adjusted, re-attempt local imports if they failed for __main__
-    # This is a bit of a hack for direct script execution. Ideally, run as part of the package.
-    # The imports at the top of the file should now work if this script is run directly.
-    # Re-importing here is not standard but can ensure components are loaded after path change.
-    # from .scs_symbolic_solver_tool import SymbolicCircuitProblemSolver # Already imported above
+    # After path adjustment, the top-level imports in this file should work when run as a script.
+    # No need to re-import within __main__.
 
     print("Running simple DC numerical solver test...")
 

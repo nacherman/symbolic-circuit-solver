@@ -1,31 +1,14 @@
 """
 Elements classes and their functions
-
-Element
-+-VoltageSource
-| +-VoltageControlledVoltageSource
-| +-CurrentControlledCurrentSource
-|
-+ -CurrentSource
-| +-VoltageControlledCurrentSource
-| +-CurrentControlledCurrentSource
-|
-+-PassiveElement
-  +-Reistance
-  +-Capacitance
-  +-Inductance
-
-Those elements are part of instance not circuit.
 """
 
 import sympy
 import sympy.abc
 from . import scs_errors
-from . import scs_parser
+# No 'from . import scs_parser' due to dependency injection
 
 __author__ = "Tomasz Kniola"
 __credits__ = ["Tomasz Kniola"]
-
 __license__ = "LGPL"
 __version__ = "0.0.1"
 __email__ = "kniola.tomasz@gmail.com"
@@ -33,440 +16,218 @@ __status__ = "development"
 
 
 class Element(object):
-    """Object with instance of an element in circuit, just template for hierarchy of object
-    """
-
-    def __init__(self, names, nets, values):
-        """ Initialize element
-
-            names: list of names, first is element name
-
-            nets: list of nets that element is connected to
-
-            values: list of values for that element
-        """
+    def __init__(self, names, nets, values, evaluate_param_func=None):
         self.names = names
         self.nets = nets
         self.values = values
+        # Store the passed function if needed by base or for consistency, though children will use it directly.
+        if evaluate_param_func:
+            self.evaluate_param = evaluate_param_func
 
     def get_numerical_dc_value(self, param_values: dict):
-        """
-        Returns the concrete numerical DC value of the element (e.g., resistance, voltage, gain)
-        given a dictionary of symbol-to-numerical-value mappings.
-        This method should be overridden by subclasses.
-        """
         raise NotImplementedError(
             f"get_numerical_dc_value() is not implemented for {type(self).__name__}"
         )
 
-
 class VoltageSource(Element):
-    """Object with instance of voltage source of a circtuit
-    """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        voltage_source_nets = element.paramsl[:-1]
+        if len(voltage_source_nets) != 2:
+            raise scs_errors.ScsElementError("Port list is too long or too short for VoltageSource.")
+        super().__init__([name], voltage_source_nets, [], evaluate_param_func=evaluate_param_func)
 
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize VoltageSource
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to VoltageSource constructor")
 
-            name: VoltageSource name 
+        if 'dc' in element.paramsd: vvalue_expresion = element.paramsd['dc']
+        else: vvalue_expresion = element.paramsl[-1]
 
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of votage for voltage source and fill the structure of generic element.            
-        """
-        if 'dc' in element.paramsd:
-            vvalue_expresion = element.paramsd['dc']
-        else:
-            vvalue_expresion = element.paramsl[-1]
-        if len(element.paramsl[:-1]) != 2:
-            raise scs_errors.ScsElementError("Port list is too long or too short.")
-        vvalue = scs_parser.evaluate_param('_v', {'_v': vvalue_expresion}, evaluated_paramsd, parent)
-        self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(vvalue,sympy.abc._clash)]
+        vvalue = evaluate_param_func('_v', {'_v': vvalue_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(vvalue, sympy.abc._clash)]
 
     def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC voltage of the source.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
         expr = self.values[0]
         try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
-            # Try to evaluate to a float. This also handles if it's already a number.
+            substituted_expr = expr.subs(param_values) if hasattr(expr, 'subs') else expr
             return float(substituted_expr)
         except (TypeError, AttributeError, ValueError) as e:
-            # This can happen if substitution doesn't resolve all symbols,
-            # or if the expression isn't directly convertible to float.
             print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
             return substituted_expr
-
 
 class VoltageControlledVoltageSource(VoltageSource):
-    """Object with instance of voltage controlled voltage source of a circtuit
-    """
-
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize VoltageControlledVoltageSource
-
-            name: element name 
-
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of votage amplifictation for voltage controlled voltage source and fill the structure
-            of generic element.
-        """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to VCVS constructor")
         gain_expresion = element.paramsl[-1]
-        gain_value = scs_parser.evaluate_param('_gain', {'_gain': gain_expresion}, evaluated_paramsd, parent)
-        self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(gain_value,sympy.abc._clash)]
-
-    def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC gain of the VCVS.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
-        expr = self.values[0]
-        try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
-            return float(substituted_expr)
-        except (TypeError, AttributeError, ValueError) as e:
-            print(f"Warning: Could not convert gain of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
-            return substituted_expr
-
+        gain_value = evaluate_param_func('_gain', {'_gain': gain_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(gain_value, sympy.abc._clash)]
+    # get_numerical_dc_value is inherited
 
 class CurrentControlledVoltageSource(VoltageSource):
-    """Object with instance of current controlled voltage source of a circtuit
-    """
-
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize CurrentControlledVoltageSource
-
-            name: element name 
-
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        # Super init sets up names and nets based on VoltageSource structure.
+        # For CCVS, nets are output nets, controlling element name is separate.
+        output_nets = element.paramsl[:-2]
+        # Create a temporary structure for super's understanding of 'element' if needed, or override after.
+        # The super().__init__ for VoltageSource will use element.paramsl[:-1] for nets.
+        # This is tricky. Let's adjust how super is called or what it expects, or set names/nets manually.
+        # Original VoltageSource init: self.nets = element.paramsl[:-1]
+        # element.paramsl for CCVS: [n_out+, n_out-, Vcontrol_name, value_expr]
         
-            We evaluate the value of transresistance for current controlled voltage source and fill the structure of
-            generic element.
-        """
+        # Call Element.__init__ directly to set names/nets correctly for CCVS structure
+        Element.__init__(self, [name, element.paramsl[-2]], output_nets, [], evaluate_param_func=evaluate_param_func)
+
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to CCVS constructor")
         r_expresion = element.paramsl[-1]
-        r_value = scs_parser.evaluate_param('_r', {'_r': r_expresion}, evaluated_paramsd, parent)
-        self.names = [name, element.paramsl[-2]]
-        self.nets = element.paramsl[:-2]
-        self.values = [sympy.sympify(r_value,sympy.abc._clash)]
-
-    def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC transresistance of the CCVS.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
-        expr = self.values[0]
-        try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
-            return float(substituted_expr)
-        except (TypeError, AttributeError, ValueError) as e:
-            print(f"Warning: Could not convert transresistance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
-            return substituted_expr
-
+        r_value = evaluate_param_func('_r', {'_r': r_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(r_value, sympy.abc._clash)]
+    # get_numerical_dc_value is inherited
 
 class CurrentSource(Element):
-    """Object with instance of current source of a circtuit
-    """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        current_source_nets = element.paramsl[:-1]
+        if len(current_source_nets) != 2:
+            raise scs_errors.ScsElementError("Port list is too long or too short for CurrentSource.")
+        super().__init__([name], current_source_nets, [], evaluate_param_func=evaluate_param_func)
 
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize CurrentSource
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to CurrentSource constructor")
 
-            name: element name 
+        if 'dc' in element.paramsd: ivalue_expresion = element.paramsd['dc']
+        else: ivalue_expresion = element.paramsl[-1]
 
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of current for current source and fill the structure of generic element.            
-        """
-        if 'dc' in element.paramsd:
-            ivalue_expresion = element.paramsd['dc']
-        else:
-            ivalue_expresion = element.paramsl[-1]
-        if len(element.paramsl[:-1]) != 2:
-            raise scs_errors.ScsElementError("Port list is too long or too short.")
-        ivalue = scs_parser.evaluate_param('_i', {'_i': ivalue_expresion}, evaluated_paramsd, parent)
-        self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(ivalue,sympy.abc._clash)]
+        ivalue = evaluate_param_func('_i', {'_i': ivalue_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(ivalue, sympy.abc._clash)]
 
     def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC current of the source.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
         expr = self.values[0]
         try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
+            substituted_expr = expr.subs(param_values) if hasattr(expr, 'subs') else expr
             return float(substituted_expr)
         except (TypeError, AttributeError, ValueError) as e:
             print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
             return substituted_expr
 
-
 class VoltageControlledCurrentSource(CurrentSource):
-    """Object with instance of volatage controlled current source of a circtuit
-    """
-
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize VoltageControlledCurrentSource
-
-            name: element name 
-
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of transconductance for voltage controlled current source and fill the structure of
-            generic element.
-        """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to VCCS constructor")
         gm_expresion = element.paramsl[-1]
-        gm_value = scs_parser.evaluate_param('_gm', {'_gm': gm_expresion}, evaluated_paramsd, parent)
-        self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(gm_value,sympy.abc._clash)]
-
-    def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC transconductance of the VCCS.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
-        expr = self.values[0]
-        try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
-            return float(substituted_expr)
-        except (TypeError, AttributeError, ValueError) as e:
-            print(f"Warning: Could not convert transconductance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
-            return substituted_expr
-
+        gm_value = evaluate_param_func('_gm', {'_gm': gm_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(gm_value, sympy.abc._clash)]
+    # get_numerical_dc_value is inherited
 
 class CurrentControlledCurrentSource(CurrentSource):
-    """Object with instance of current controlled current source of a circtuit
-    """
-
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize CurrentControlledCurrentSource
-
-            name: element name 
-
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        # Similar to CCVS, need to handle names/nets carefully.
+        # element.paramsl for CCCS: [n_out+, n_out-, Vcontrol_name, value_expr]
+        output_nets = element.paramsl[:-2]
+        Element.__init__(self, [name, element.paramsl[-2]], output_nets, [], evaluate_param_func=evaluate_param_func)
         
-            We evaluate the value of current amplification for current controlled current source and fill the structure
-            of generic element.
-        """
-        ai_expresion = element.paramsl[-1]
-        ai_value = scs_parser.evaluate_param('_ai', {'_ai': ai_expresion}, evaluated_paramsd, parent)
-        self.names = [name, element.paramsl[-2]]
-        self.nets = element.paramsl[:-2]
-        self.values = [sympy.sympify(ai_value,sympy.abc._clash)]
-
-    def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC current gain of the CCCS.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
-        expr = self.values[0]
-        try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
-            return float(substituted_expr)
-        except (TypeError, AttributeError, ValueError) as e:
-            print(f"Warning: Could not convert current gain of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
-            return substituted_expr
-
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to CCCS constructor")
+        ai_expresion = element.paramsl[-1] # Current gain
+        ai_value = evaluate_param_func('_ai', {'_ai': ai_expresion}, evaluated_paramsd, parent)
+        self.values = [sympy.sympify(ai_value, sympy.abc._clash)]
+    # get_numerical_dc_value is inherited
 
 class PassiveElement(Element):
-    """ Object with instance of a passive element of a circuit
-    """
-    None
-
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func=None):
+        # Children (Resistance etc.) will call super() which eventually calls Element.__init__.
+        # They will set their own names, nets, values after their specific logic.
+        # This __init__ needs to ensure evaluate_param_func is passed up.
+        # The _names, _nets, _values passed to super() here are placeholders if PassiveElement
+        # were instantiated directly, but concrete children will define these more meaningfully.
+        _names = [name] if name else []
+        _nets = []
+        if hasattr(element, 'paramsl'):
+             _nets = element.paramsl[:-1]
+        super().__init__(_names, _nets, [], evaluate_param_func=evaluate_param_func)
 
 class Resistance(PassiveElement):
-    """Object with instance of a resitance of a circuit.
-    """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to Resistance constructor")
 
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize Resistance
-
-            name: element name 
-
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
+        if 'r' in element.paramsd: rvalue_expresion = element.paramsd['r']
+        elif 'R' in element.paramsd: rvalue_expresion = element.paramsd['R']
+        else: rvalue_expresion = element.paramsl[-1]
         
-            We evaluate the value of resistance for resistor and fill the structure of generic element.            
-        """
-        if 'r' in element.paramsd:
-            rvalue_expresion = element.paramsd['r']
-        elif 'R' in element.paramsd:
-            rvalue_expresion = element.paramsd['R']
-        else:
-            rvalue_expresion = element.paramsl[-1]
-        if len(element.paramsl[:-1]) != 2:
-            raise scs_errors.ScsElementError("Port list is too long or too short.")
-        rvalue = scs_parser.evaluate_param('_r', {'_r': rvalue_expresion}, evaluated_paramsd, parent)
+        current_nets = element.paramsl[:-1]
+        if len(current_nets) != 2:
+            raise scs_errors.ScsElementError("Port list is too long or too short for Resistance.")
+
+        rvalue = evaluate_param_func('_r', {'_r': rvalue_expresion}, evaluated_paramsd, parent)
         self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(rvalue,sympy.abc._clash)]
+        self.nets = current_nets
+        self.values = [sympy.sympify(rvalue, sympy.abc._clash)]
 
     def conductance(self):
-        """ Calculate the conductance of self
-        """
         return 1.0 / self.values[0]
 
     def get_numerical_dc_value(self, param_values: dict) -> float | object:
-        """
-        Returns the numerical DC resistance value of the resistor.
-        param_values: A dictionary mapping Sympy symbols to numerical values.
-        """
         expr = self.values[0]
         try:
-            if hasattr(expr, 'subs'):
-                substituted_expr = expr.subs(param_values)
-            else:
-                substituted_expr = expr # Already a number or not substitutable
-
+            substituted_expr = expr.subs(param_values) if hasattr(expr, 'subs') else expr
             return float(substituted_expr)
         except (TypeError, AttributeError, ValueError) as e:
             print(f"Warning: Could not convert resistance of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
             return substituted_expr
 
-
 class Capacitance(PassiveElement):
-    """Object with instance of a capacitance of a circuit.
-    """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to Capacitance constructor")
 
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize Capacitance
+        if 'c' in element.paramsd: cvalue_expresion = element.paramsd['c']
+        elif 'C' in element.paramsd: cvalue_expresion = element.paramsd['C']
+        else: cvalue_expresion = element.paramsl[-1]
 
-            name: element name 
+        current_nets = element.paramsl[:-1]
+        if len(current_nets) != 2:
+            raise scs_errors.ScsElementError("Port list is too long or too short for Capacitance.")
 
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of capacitance for capacitor and fill the structure of generic element.            
-        """
-        if 'c' in element.paramsd:
-            cvalue_expresion = element.paramsd['c']
-        elif 'C' in element.paramsd:
-            cvalue_expresion = element.paramsd['C']
-        else:
-            cvalue_expresion = element.paramsl[-1]
-        if len(element.paramsl[:-1]) != 2:
-            raise scs_errors.ScsElementError("Port list is too long or too short.")
-        cvalue = scs_parser.evaluate_param('_c', {'_c': cvalue_expresion}, evaluated_paramsd, parent)
+        cvalue = evaluate_param_func('_c', {'_c': cvalue_expresion}, evaluated_paramsd, parent)
         self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(cvalue,sympy.abc._clash)]
+        self.nets = current_nets
+        self.values = [sympy.sympify(cvalue, sympy.abc._clash)]
 
     def conductance(self):
-        """ Calculate the conductance of self
-        """
         return sympy.symbols('s') * self.values[0]
 
     def get_numerical_dc_value(self, param_values: dict) -> float:
-        """
-        Returns the DC impedance of a capacitor (infinite).
-        """
         return float('inf')
 
-
 class Inductance(PassiveElement):
-    """Object with instance of a inductance of a circuit.
-    """
+    def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
+        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        if evaluate_param_func is None:
+            raise ValueError("evaluate_param_func must be provided to Inductance constructor")
 
-    def __init__(self, name, element, evaluated_paramsd, parent):
-        """ Initialize Inductace
+        if 'l' in element.paramsd: lvalue_expresion = element.paramsd['l']
+        elif 'L' in element.paramsd: lvalue_expresion = element.paramsd['L']
+        else: lvalue_expresion = element.paramsl[-1]
 
-            name: element name 
+        current_nets = element.paramsl[:-1]
+        if len(current_nets) != 2:
+            raise scs_errors.ScsElementError("Port list is too long or too short for Inductance.")
 
-            element: element template from circuit, object from scs_circuit.Element
-
-            evaluated_paramsd: dictionary of parameter value pair which can be used to evaluate value of voltage source
-
-            parent: instance parent which can have defintion of needed parameters
-        
-            We evaluate the value of inductance for inductor and fill the structure of generic element.            
-        """
-        if 'l' in element.paramsd:
-            lvalue_expresion = element.paramsd['l']
-        elif 'L' in element.paramsd:
-            lvalue_expresion = element.paramsd['L']
-        else:
-            lvalue_expresion = element.paramsl[-1]
-        if len(element.paramsl[:-1]) != 2:
-            raise scs_errors.ScsElementError("Port list is too long or too short.")
-        lvalue = scs_parser.evaluate_param('_l', {'_l': lvalue_expresion}, evaluated_paramsd, parent)
+        lvalue = evaluate_param_func('_l', {'_l': lvalue_expresion}, evaluated_paramsd, parent)
         self.names = [name]
-        self.nets = element.paramsl[:-1]
-        self.values = [sympy.sympify(lvalue,sympy.abc._clash)]
+        self.nets = current_nets
+        self.values = [sympy.sympify(lvalue, sympy.abc._clash)]
 
     def conductance(self):
-        """ Calculate the conductance of self
-        """
         return 1.0 / (sympy.symbols('s') * self.values[0])
 
     def get_numerical_dc_value(self, param_values: dict) -> float:
-        """
-        Returns the DC impedance of an inductor (zero).
-        """
         return 0.0
 
-
-# Dictionary of 1st letter of a name with appriopriate element object
 elementd = {'r': Resistance, 'R': Resistance,
             'c': Capacitance, 'C': Capacitance,
             'l': Inductance, 'L': Inductance,

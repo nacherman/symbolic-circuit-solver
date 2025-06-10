@@ -19,6 +19,7 @@ import logging
 
 from . import scs_errors
 from . import scs_parser
+from .scs_parser import evaluate_param as evaluate_param_func_for_elements # Import for dependency injection
 from . import scs_elements
 
 class Instance(object):
@@ -899,10 +900,12 @@ def make_instance(parent,name,circuit,port_map={},passed_paramsd={}):
                                         %(subcir_name, ename, circuit.name)) 
         elif ename[0] in scs_elements.elementd:
             try:
-                inst.add_element(scs_elements.elementd[ename[0]](ename,element,inst.paramsd,parent))
-            except (scs_errors.ScsParameterError,scs_errors.ScsElementError) as e:
-                raise scs_errors.ScsInstanceError("Error evaluating parametrs for instance: %s in %s subcircuit. %s" % (ename,circuit.name,e))
-
+                # Pass the evaluate_param_func to the element constructor
+                constructor = scs_elements.elementd[ename[0]]
+                element_instance = constructor(ename,element,inst.paramsd,parent, evaluate_param_func=evaluate_param_func_for_elements)
+                inst.add_element(element_instance)
+            except (scs_errors.ScsParameterError,scs_errors.ScsElementError, ValueError) as e: # Added ValueError for evaluate_param_func check
+                raise scs_errors.ScsInstanceError("Error evaluating parameters or creating instance for: %s in %s subcircuit. Error: %s" % (ename,circuit.name if circuit else 'UnknownCircuit',e))
         else:
             raise scs_errors.ScsInstanceError("Error: no element of that type: %s. Strange should have been cought by parser?"   
                   % (ename))
