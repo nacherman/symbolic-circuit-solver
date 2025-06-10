@@ -68,6 +68,20 @@ def main():
         # --- Step 5: Calculate and display detailed V, I, P for each resistor ---
         # This section demonstrates how to use the solved parameters and base circuit solution
         # to find operating points for all components.
+
+        # First, check if solver.top_instance is available, as it's crucial for all subsequent operations
+        if not solver.top_instance:
+            print("\nError: solver.top_instance is not available. Cannot proceed with V, I, P calculations.")
+            print("This usually means there was an issue parsing or solving the base circuit.")
+            return # Exit main() if top_instance is missing
+
+        # Warn if paramsd is missing, as it might lead to incomplete substitutions
+        if not solver.top_instance.paramsd:
+            print("\nWarning: solver.top_instance.paramsd is not available or empty. Substitution dictionary might be incomplete.")
+            # Depending on how critical paramsd is for every single case, one might choose to return/exit here.
+            # For now, proceeding with a warning, as some information might still be calculable
+            # if solution dictionary is comprehensive and expressions don't rely on further .PARAMs.
+
         print("\n\n--- Detailed V, I, P for each Resistor ---")
 
         # Create a comprehensive substitution dictionary:
@@ -78,25 +92,22 @@ def main():
         #    If R3_val was R3_sym, it becomes the solved numerical value of R3_sym.
         # 3. Add the solved variables themselves to ensure they take precedence.
         final_subs_dict_for_eval = {}
-        # Start with all parameters as defined in the instance (e.g. R1_val -> 180, U_source_val -> U_sym)
-        if solver.top_instance and solver.top_instance.paramsd: # Changed solver_tool to solver
-            for param_symbol, value_expr in solver.top_instance.paramsd.items(): # Changed solver_tool to solver
-                final_subs_dict_for_eval[param_symbol] = value_expr
+        if solver.top_instance and solver.top_instance.paramsd:
+            for param_symbol, value_expr in solver.top_instance.paramsd.items():
+                if hasattr(value_expr, 'subs'):
+                    # If it's a symbolic expression, substitute the solution into it
+                    final_subs_dict_for_eval[param_symbol] = value_expr.subs(solution)
+                else:
+                    # Otherwise, it's already a numerical value or a non-substitutable expression
+                    final_subs_dict_for_eval[param_symbol] = value_expr
 
-        # Substitute solved symbols (like U_sym, R3_sym) into the expressions derived from paramsd
-        temp_subs_for_paramsd_eval = {}
-        for k, v_expr in final_subs_dict_for_eval.items():
-            if hasattr(v_expr, 'subs'):
-                # Substitute solved variables into the parameter expressions first
-                temp_subs_for_paramsd_eval[k] = v_expr.subs(solution)
-            else:
-                temp_subs_for_paramsd_eval[k] = v_expr # It's already a number e.g. 180
-        final_subs_dict_for_eval = temp_subs_for_paramsd_eval
-
-        # Ensure the solved symbols themselves are in the dict with their final numerical values
-        for solved_sym, solved_val in solution.items():
-            final_subs_dict_for_eval[solved_sym] = solved_val
-
+        # Add/overwrite with the directly solved symbols and their numerical values
+        # This ensures that symbols like U_sym (which might also be part of an expression
+        # in paramsd, e.g., .PARAM US_alias = U_sym) are correctly mapped to their final
+        # numerical solutions.
+        if solution: # Ensure solution is not None
+            for solved_sym, solved_val in solution.items():
+                final_subs_dict_for_eval[solved_sym] = solved_val
 
         resistors_info = {
             'R1': ('N_TOP', 'N1'),
@@ -129,37 +140,57 @@ def main():
                 i_val_numeric = i_val_substituted.evalf() if hasattr(i_val_substituted, 'evalf') else i_val_substituted
                 p_val_numeric = p_val_substituted.evalf() if hasattr(p_val_substituted, 'evalf') else p_val_substituted
 
-                # Safer way to get resistance value
+                # Improved way to get resistance value
                 target_r_param_name_str = r_name + '_val'
-                actual_r_param_symbol_key = None
-                # Iterate through the keys of the dictionary that contains the original symbols from parsing
-                # These original Symbol objects must be used for lookup.
-                if solver.top_instance and solver.top_instance.paramsd:
-                    for sym_key in solver.top_instance.paramsd.keys():
-                        if str(sym_key) == target_r_param_name_str:
-                            actual_r_param_symbol_key = sym_key
-                            break
+                # Ensure symbol creation is consistent with how keys are likely stored in paramsd (via sympy.symbols)
+                param_symbol_to_find = sympy.symbols(target_r_param_name_str)
 
-                if actual_r_param_symbol_key:
-                    # Now get the (potentially substituted) value from final_subs_dict_for_eval
-                    r_actual_expr = final_subs_dict_for_eval.get(actual_r_param_symbol_key)
-                else:
-                    r_actual_expr = None # Parameter symbol not found in original paramsd
+                r_actual_expr = final_subs_dict_for_eval.get(param_symbol_to_find)
+                r_actual_numeric = None # Initialize
 
                 if r_actual_expr is None:
-                    r_actual_numeric = f"N/A (param symbol {target_r_param_name_str} not in instance params)"
-                elif hasattr(r_actual_expr, 'evalf'): # If it's an expression, evaluate it
-                    r_actual_numeric = r_actual_expr.evalf()
-                else: # Otherwise, it should be a number already
-                    r_actual_numeric = r_actual_expr
+                    # Primary lookup failed, try string fallback
+                    found_by_str = False
+                    for k_sym, v_val in final_subs_dict_for_eval.items():
+                        if str(k_sym) == target_r_param_name_str:
+                            r_actual_expr = v_val # r_actual_expr is now populated
+                            found_by_str = True
+                            # print(f"Debug: Found {target_r_param_name_str} by string fallback.")
+                            break
+                    if not found_by_str:
+                        r_actual_numeric = f"N/A (param symbol {target_r_param_name_str} not found by Symbol or string fallback)"
+
+                # At this point, r_actual_expr might be populated (either by symbol or string lookup) or still None.
+                # r_actual_numeric is either the "not found" message or None.
+
+                if r_actual_numeric is None: # Only proceed if not already set to "not found"
+                    if r_actual_expr is None:
+                        # This case should ideally not be reached if the above logic is correct,
+                        # means it was not found by symbol AND not by string, and r_actual_numeric should already be set.
+                        # However, as a safeguard:
+                        r_actual_numeric = f"N/A (param symbol {target_r_param_name_str} unexpectedly None after fallbacks)"
+                    elif hasattr(r_actual_expr, 'evalf'):
+                        r_actual_numeric = r_actual_expr.evalf()
+                    else:
+                        r_actual_numeric = r_actual_expr
 
                 print(f"  Resistance: {r_actual_numeric} Ω")
                 print(f"  Voltage:    {v_val_numeric:.4f} V")
                 print(f"  Current:    {i_val_numeric * 1000:.4f} mA")
                 print(f"  Power:      {p_val_numeric * 1000:.4f} mW")
 
-            except Exception as e_detail:
-                print(f"  Error calculating details for {r_name}: {type(e_detail).__name__} - {e_detail}")
+            except (AttributeError, TypeError) as e_specific:
+                error_type_name = type(e_specific).__name__
+                print(f"  Error calculating details for {r_name}: An {error_type_name} occurred.")
+                print(f"  This might be due to an unexpected expression type (e.g., None or already a float when .subs/.evalf was expected),")
+                print(f"  or incompatible types during a substitution/evaluation.")
+                print(f"  Details: {e_specific}")
+            except KeyError as e_key:
+                print(f"  Error calculating details for {r_name}: A KeyError occurred during substitution.")
+                print(f"  A symbol (likely '{e_key}') was expected in the substitution dictionary but not found.")
+                print(f"  Details: {e_key}")
+            except Exception as e_detail: # General fallback
+                print(f"  An unexpected error calculating details for {r_name}: {type(e_detail).__name__} - {e_detail}")
         # Section to add ends here
 
         # --- Step 6: Original separate power calculation for R3 (for comparison/verification) ---
