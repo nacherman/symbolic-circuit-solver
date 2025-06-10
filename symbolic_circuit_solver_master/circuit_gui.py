@@ -14,18 +14,9 @@ from .scs_symbolic_solver_tool import SymbolicCircuitProblemSolver
 
 
 class CircuitGUI(tk.Tk):
+    VERIFICATION_TOLERANCE = 1e-6 # Class attribute for tolerance
+
     def __init__(self):
-        # Visual Highlighting Constants
-        self.DEFAULT_OUTLINE_COLOR = "black"
-        self.SELECTED_OUTLINE_COLOR = "blue"
-        self.DEFAULT_COMPONENT_WIDTH = 1
-        self.SELECTED_COMPONENT_WIDTH = 2
-
-        self.DEFAULT_WIRE_COLOR = "black"
-        self.SELECTED_WIRE_COLOR = "blue"
-        self.DEFAULT_WIRE_WIDTH = 2
-        self.SELECTED_WIRE_WIDTH = 3
-
         self.top_instance = None
         self.active_symbols_info = {}
         self.selected_component_to_place = None
@@ -97,7 +88,7 @@ class CircuitGUI(tk.Tk):
         self.canvas.bind("<ButtonPress-3>", self._pan_start)
         self.canvas.bind("<B2-Motion>", self._pan_move)
         self.canvas.bind("<B3-Motion>", self._pan_move)
-        self.canvas.config(scrollregion=(-20000, -20000, 20000, 20000), cursor="arrow") # Default cursor
+        self.canvas.config(scrollregion=(-20000, -20000, 20000, 20000))
 
         self.properties_editor_frame = ttk.LabelFrame(self.center_frame_top, text="Properties Editor", padding="10")
         self.properties_editor_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5,0), pady=5)
@@ -196,7 +187,10 @@ class CircuitGUI(tk.Tk):
         for line in lines:
             if line.strip() and not line.strip().startswith('*'):
                 non_comment_directive_lines +=1
-        return non_comment_directive_lines > 2
+        # Check if there's more than just title, .PARAM lines and .END
+        # A simple heuristic: count actual component definition lines.
+        comp_lines = [l for l in lines if l.strip() and not l.startswith('*') and not l.lower().startswith('.param') and not l.lower().startswith('.end')]
+        return bool(comp_lines)
 
     def _canvas_to_logical_coords(self, canvas_x, canvas_y):
         logical_x = self.canvas.canvasx(canvas_x) / self.canvas_scale
@@ -208,7 +202,7 @@ class CircuitGUI(tk.Tk):
         canvas_y = logical_y * self.canvas_scale
         return canvas_x, canvas_y
 
-    def _snap_to_grid(self, logical_x, logical_y): # New
+    def _snap_to_grid(self, logical_x, logical_y):
         if not self.show_grid.get() or self.logical_grid_spacing <= 0:
             return logical_x, logical_y
         snapped_x = round(logical_x / self.logical_grid_spacing) * self.logical_grid_spacing
@@ -226,7 +220,7 @@ class CircuitGUI(tk.Tk):
     def _pan_start(self, event): self.canvas.scan_mark(event.x, event.y)
     def _pan_move(self, event): self.canvas.scan_dragto(event.x, event.y, gain=1)
 
-    def _redraw_canvas(self): # Modified for grid and selection highlighting
+    def _redraw_canvas(self):
         self.canvas.delete("all")
         if self.show_grid.get():
             logical_grid_spacing = self.logical_grid_spacing
@@ -251,12 +245,10 @@ class CircuitGUI(tk.Tk):
                 canvas_item_center_x, canvas_item_center_y, item_info['type'], item_info['id'],
                 scale=self.canvas_scale
             )
-            # Apply selection highlight after drawing if this item is selected
             if item_info['id'] == self.currently_selected_canvas_item_gui_name:
                 for c_id in item_info['canvas_item_ids']:
-                    # Check type to avoid changing outline of text or simple lines if not desired
-                    item_type = self.canvas.type(c_id)
-                    if item_type not in ["text"]: # Example: don't change outline of text, but do for 'line' if it's part of symbol body
+                    item_type_on_canvas = self.canvas.type(c_id)
+                    if item_type_on_canvas not in ["text"]:
                         self.canvas.itemconfig(c_id, outline=self.SELECTED_OUTLINE_COLOR,
                                                width=max(1, int(self.SELECTED_COMPONENT_WIDTH * self.canvas_scale)))
 
@@ -269,36 +261,21 @@ class CircuitGUI(tk.Tk):
             wire_info['canvas_line_id'] = self.canvas.create_line(
                 cx1,cy1,cx2,cy2,fill=current_wire_color,width=max(1,int(current_wire_width * self.canvas_scale)),tags=("wire",wire_info['id']))
 
-        if self.temp_wire_start_indicator and self.wire_start_coords: # wire_start_coords are logical
+        if self.temp_wire_start_indicator and self.wire_start_coords:
             csx,csy = self._logical_to_canvas_coords(self.wire_start_coords[0],self.wire_start_coords[1])
             oval_radius = 3
-            # Re-create; old one was deleted by canvas.delete("all")
             self.temp_wire_start_indicator = self.canvas.create_oval(csx-oval_radius,csy-oval_radius,csx+oval_radius,csy+oval_radius,fill="red",outline="red",tags="temp_indicator")
 
-    # --- The rest of the methods from previous state ---
-    # (Includes: display_message, on_derive_formulas, _get_component_details_from_gui_name, _eval_expr_to_float,
-    #  _add_component_row, _remove_last_component_row, _collect_circuit_data, _generate_spice_netlist,
-    #  on_calculate_numerical, _add_adv_condition_row, _remove_last_adv_condition_row,
-    #  _collect_advanced_solve_inputs, _run_advanced_solve,
-    #  _save_circuit_to_file, _load_circuit_from_file,
-    #  _select_component_for_placement (modified), _select_wire_tool (modified), _select_select_tool (new),
-    #  _on_canvas_button_press (modified), _on_canvas_drag_motion (modified), _on_canvas_button_release (modified),
-    #  _draw_component_symbol (modified for scale),
-    #  _populate_properties_editor (modified), _clear_selection_and_properties_editor (modified),
-    #  _update_component_properties (modified), _update_button_states (new),
-    #  _delete_wire_by_id (new), _delete_selected (modified),
-    #  _update_pin_node_after_wire_deletion (new), _get_node_for_pin (new), _set_node_for_pin (new), _update_nodes_from_wire (new)
-    #  The full content of these methods will be the one from the end of the previous subtask,
-    #  with specific modifications for this subtask integrated below)
-
-    def display_message(self, title, message): # As is
+    def display_message(self, title, message):
         self.results_text.config(state=tk.NORMAL); self.results_text.insert(tk.END, f"--- {title} ---\n{message}\n\n"); self.results_text.see(tk.END); self.results_text.config(state=tk.DISABLED)
 
-    def on_derive_formulas(self): # As is
+    def on_derive_formulas(self):
         self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END); self.results_text.config(state=tk.DISABLED)
         circuit_data = self._collect_circuit_data()
         if not circuit_data: self.display_message("Input Error", "No valid component data entered."); return
+
         spice_string = self._generate_spice_netlist(circuit_data)
+
         self.display_message("Generated SPICE Netlist", spice_string)
         temp_spice_file_path = ""
         try:
@@ -362,7 +339,145 @@ class CircuitGUI(tk.Tk):
                                                           'n2': comp_gui_dict['n2'] if comp_gui_dict['n2'] else '0'}
             self.display_message("Solver Status", f"Active symbols for numerics: {list(self.active_symbols_info.keys())}")
 
-    def _get_component_details_from_gui_name(self, target_gui_name_str, circuit_data): # As is
+    def _collect_advanced_solve_inputs(self): # As is
+        params_str = self.adv_params_to_solve_entry.get().strip()
+        if not params_str: self.display_message("Input Error", "No params to solve specified."); return None, None
+        params_to_solve_list = [p.strip() for p in params_str.split(',') if p.strip()]
+        if not params_to_solve_list: self.display_message("Input Error", "Params list empty."); return None, None
+        known_conditions_list = []
+        for cond_widgets in self.adv_known_condition_rows:
+            cond_type = cond_widgets['type'].get(); el_n1_str = cond_widgets['el_n1'].get().strip(); val_str = cond_widgets['val'].get().strip()
+            if cond_type and el_n1_str and val_str:
+                try: num_value = float(val_str)
+                except ValueError: self.display_message("Input Error", f"Invalid value '{val_str}'."); return None, None
+                condition = {'type': cond_type, 'value': num_value}
+                if cond_type == 'voltage': condition['node1'] = el_n1_str; condition['node2'] = cond_widgets['n2'].get().strip() or '0'
+                elif cond_type in ['current', 'power']: condition['element'] = el_n1_str
+                else: self.display_message("Input Error", f"Unknown condition type: {cond_type}"); return None, None
+                known_conditions_list.append(condition)
+        if not known_conditions_list: self.display_message("Input Error", "No valid conditions."); return None, None
+        return params_to_solve_list, known_conditions_list
+
+    def _run_advanced_solve(self): # Modified for this subtask
+        self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END); self.results_text.config(state=tk.DISABLED)
+        self.display_message("Advanced Solve", "Starting advanced problem solving...")
+        circuit_data = self._collect_circuit_data()
+        if not circuit_data: self.display_message("Circuit Error", "No circuit defined."); return
+
+        spice_string = self._generate_spice_netlist(circuit_data)
+        if not self._is_spice_sufficient(spice_string, circuit_data):
+             self.display_message("SPICE Error", "SPICE netlist seems insufficient. Cannot proceed."); return
+        self.display_message("Generated SPICE for Advanced Solve", spice_string)
+
+        params_to_solve, known_conditions = self._collect_advanced_solve_inputs()
+        if not params_to_solve or not known_conditions: return
+
+        self.display_message("Advanced Solver Inputs",
+                             f"  Parameters to Solve: {params_to_solve}\n" +
+                             f"  Known Conditions: {json.dumps(known_conditions, indent=2)}")
+        temp_spice_file_path = ""
+        all_inconsistencies = [] # For consistency checks
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.sp', dir='.') as tmp_file:
+                tmp_file.write(spice_string); temp_spice_file_path = tmp_file.name
+            self.display_message("Solver Status", f"Running SymbolicCircuitProblemSolver with {os.path.basename(temp_spice_file_path)}...")
+            adv_solver = SymbolicCircuitProblemSolver(netlist_path=temp_spice_file_path)
+            solution_dict = adv_solver.solve_for_unknowns(known_conditions, params_to_solve)
+            solution_str = "--- Solved Parameter Values ---\n"
+            if not solution_dict: solution_str += "  No solution found or solution is empty.\n"
+            else:
+                for var_symbol, val_expr in solution_dict.items():
+                    solution_str += f"  {str(var_symbol)} = {sympy.pretty(val_expr) if hasattr(val_expr, '_pretty') else str(val_expr)}\n"
+                    num_val_disp = self._eval_expr_to_float(val_expr) # Try to get float for display
+                    if num_val_disp is not None:
+                        solution_str += f"    Numerical: {num_val_disp:.4g}\n"
+                    elif hasattr(val_expr, 'evalf'): # If not float, but can evalf (e.g. symbolic still)
+                        solution_str += f"    (Expression evaluated to: {val_expr.evalf()})\n"
+                    else: # Neither float nor sympy expr with evalf
+                         solution_str += f"    (Value: {val_expr})\n"
+            self.display_message("Advanced Solution", solution_str)
+
+            if solution_dict and adv_solver.top_instance:
+                self.display_message("Post-Solve Analysis", "Calculating V, I, P with solved values...")
+                final_subs_for_vip = {}
+                if adv_solver.top_instance.paramsd:
+                    for p_sym, p_expr in adv_solver.top_instance.paramsd.items(): final_subs_for_vip[p_sym] = p_expr
+                for k_sym, v_expr_s in final_subs_for_vip.items():
+                    if hasattr(v_expr_s, 'subs'): final_subs_for_vip[k_sym] = v_expr_s.subs(solution_dict)
+                for solved_s, solved_v in solution_dict.items(): final_subs_for_vip[solved_s] = solved_v
+
+                vip_results_str = "\n--- Detailed V, I, P (using solved values) ---\n"
+                for comp_data in circuit_data:
+                    comp_gui_name = comp_data['name']
+                    comp_details_for_nodes = self._get_component_details_from_gui_name(comp_gui_name, circuit_data)
+                    if not comp_details_for_nodes: continue
+                    actual_spice_name = comp_details_for_nodes['spice_name']
+                    vip_results_str += f"--- {comp_gui_name} (as {actual_spice_name}) ---\n"
+                    try:
+                        v_expr = adv_solver.top_instance.v(comp_details_for_nodes['n1'], comp_details_for_nodes['n2'])
+                        i_expr = adv_solver.top_instance.i(actual_spice_name)
+                        p_expr = adv_solver.top_instance.p(actual_spice_name)
+
+                        # Get component's own value (e.g. resistance, source value)
+                        comp_own_val_expr_str = comp_details_for_nodes['value_str']
+                        comp_own_val_sym = sympy.sympify(comp_own_val_expr_str) if not self._is_numeric(comp_own_val_expr_str) else sympy.Float(comp_own_val_expr_str)
+                        comp_own_val_num_expr = comp_own_val_sym.subs(final_subs_for_vip) if hasattr(comp_own_val_sym, 'subs') else comp_own_val_sym
+
+                        comp_own_val_num = self._eval_expr_to_float(comp_own_val_num_expr)
+                        v_val_num = self._eval_expr_to_float(v_expr.subs(final_subs_for_vip))
+                        i_val_num = self._eval_expr_to_float(i_expr.subs(final_subs_for_vip))
+                        p_val_num = self._eval_expr_to_float(p_expr.subs(final_subs_for_vip))
+
+                        unit = {"Resistor":"Ω","V_Source_DC":"V","I_Source_DC":"A"}.get(comp_details_for_nodes['type'],"")
+                        vip_results_str += f"  Value: {comp_own_val_num if comp_own_val_num is not None else 'N/A'} {unit}\n"
+                        vip_results_str += f"  Voltage:    {v_val_num if v_val_num is not None else 'N/A'} V\n"
+                        vip_results_str += f"  Current:    {(v_val_num*1000) if v_val_num is not None else 'N/A'} mA\n" # Corrected from i_val_num
+                        vip_results_str += f"  Power:      {(p_val_num*1000) if p_val_num is not None else 'N/A'} mW\n"
+
+                        # Consistency Checks
+                        comp_type = comp_details_for_nodes['type']
+                        numeric_values_present = all(val is not None for val in [v_val_num, i_val_num, p_val_num])
+                        if comp_type == "Resistor": numeric_values_present = numeric_values_present and (comp_own_val_num is not None)
+
+                        if numeric_values_present:
+                            if comp_type == "Resistor":
+                                if abs(comp_own_val_num) > self.VERIFICATION_TOLERANCE:
+                                    ohm_law_diff = abs(v_val_num - i_val_num * comp_own_val_num)
+                                    if ohm_law_diff > self.VERIFICATION_TOLERANCE:
+                                        all_inconsistencies.append(f"  Resistor '{comp_gui_name}': Ohm's Law. |V-IR| = {ohm_law_diff:.2e} (V={v_val_num:.2e}, I={i_val_num:.2e}, R={comp_own_val_num:.2e})")
+                                elif abs(v_val_num) > self.VERIFICATION_TOLERANCE: # R is near zero
+                                     if abs(i_val_num * comp_own_val_num) > self.VERIFICATION_TOLERANCE and abs(v_val_num - i_val_num*comp_own_val_num) > self.VERIFICATION_TOLERANCE :
+                                          all_inconsistencies.append(f"  Resistor '{comp_gui_name}': Ohm's Law (low R). |V-IR| = {abs(v_val_num - i_val_num * comp_own_val_num):.2e} (V={v_val_num:.2e}, I={i_val_num:.2e}, R={comp_own_val_num:.2e})")
+                            power_law_diff = abs(p_val_num - v_val_num * i_val_num)
+                            if power_law_diff > self.VERIFICATION_TOLERANCE:
+                                 all_inconsistencies.append(f"  Component '{comp_gui_name}': Power Law. |P-VI| = {power_law_diff:.2e} (P={p_val_num:.2e}, V={v_val_num:.2e}, I={i_val_num:.2e})")
+                        else:
+                             all_inconsistencies.append(f"  Component '{comp_gui_name}': Some V,I,P,R values non-numeric, verification incomplete.")
+                    except Exception as e_vip: vip_results_str += f"  Error V/I/P details: {type(e_vip).__name__} - {e_vip}\n"
+                self.display_message("V/I/P Results", vip_results_str)
+
+            # Display Verification Status
+            verification_status_str = "\n--- Numerical Verification Status (Tolerance=" + f"{self.VERIFICATION_TOLERANCE:.0e}" + ") ---\n"
+            if not all_inconsistencies:
+                verification_status_str += "  All component V, I, R, P values appear self-consistent.\n"
+            else:
+                verification_status_str += "  Potential inconsistencies found or checks incomplete:\n"
+                for entry in all_inconsistencies:
+                    verification_status_str += f"{entry}\n"
+            self.display_message("Verification Result", verification_status_str)
+
+        except (scs_errors.ScsParserError, scs_errors.ScsInstanceError, scs_errors.ScsToolError, ValueError) as e:
+            self.display_message("Advanced Solver Error", f"{type(e).__name__}: {e}")
+        except Exception as e:
+            self.display_message("Advanced Solver Error (Unexpected)", f"{type(e).__name__}: {e}")
+            import traceback; traceback.print_exc()
+        finally:
+            if temp_spice_file_path and os.path.exists(temp_spice_file_path):
+                try: os.remove(temp_spice_file_path)
+                except Exception as e_remove: print(f"Error removing temp file: {e_remove}")
+
+    # [Pasted methods from _get_component_details_from_gui_name to _update_nodes_from_wire go here]
+    def _get_component_details_from_gui_name(self, target_gui_name_str, circuit_data): # Copied
         if not target_gui_name_str: return None
         for comp_dict in circuit_data:
             if comp_dict['name'] == target_gui_name_str:
@@ -373,13 +488,20 @@ class CircuitGUI(tk.Tk):
                         'type': comp_dict['type'], 'value_str': comp_dict['value']}
         return None
 
-    def _eval_expr_to_float(self, expr, default_on_error="N/A (eval error)"): # As is
+    def _eval_expr_to_float(self, expr): # Modified for this subtask
         try:
-            if hasattr(expr, 'free_symbols') and expr.free_symbols: pass
-            return float(expr.evalf())
-        except: return default_on_error
+            if hasattr(expr, 'is_complex') and expr.is_complex: # Check if sympy says it's complex
+                 if hasattr(expr, 'as_real_imag') and abs(float(expr.as_real_imag()[1])) > self.VERIFICATION_TOLERANCE : # Check imag part
+                     return None # Cannot convert complex to float for these checks directly
+                 else: # Imaginary part is negligible or zero
+                     expr = expr.as_real_imag()[0]
 
-    def _add_component_row(self, load_data=None): # As is
+            evaluated = expr.evalf()
+            return float(evaluated)
+        except (AttributeError, TypeError, ValueError, Exception) as e:
+            return None
+
+    def _add_component_row(self, load_data=None): # Copied
         if load_data is None: load_data = {}
         row_frame = ttk.Frame(self.components_list_container_frame)
         row_frame.pack(fill=tk.X, pady=2, padx=2)
@@ -400,10 +522,10 @@ class CircuitGUI(tk.Tk):
                        'n1': n1_entry, 'n2': n2_entry}
         self.component_entries.append(row_widgets)
 
-    def _remove_last_component_row(self): # As is
+    def _remove_last_component_row(self): # Copied
         if self.component_entries: self.component_entries.pop()['frame'].destroy()
 
-    def _collect_circuit_data(self): # As is
+    def _collect_circuit_data(self): # Copied
         data = []
         for widgets in self.component_entries:
             if widgets['type'].get() and widgets['name'].get().strip():
@@ -412,7 +534,7 @@ class CircuitGUI(tk.Tk):
                              'n2': widgets['n2'].get().strip()})
         return data
 
-    def _generate_spice_netlist(self, circuit_data): # As is
+    def _generate_spice_netlist(self, circuit_data): # Modified for warning display
         lines = ['* Generated SPICE Netlist from GUI']; params = []; sym_ensure = set()
         skipped_components_info = []
         for comp in circuit_data:
@@ -441,7 +563,7 @@ class CircuitGUI(tk.Tk):
         netlist_parts.append(".END")
         return "\n".join(netlist_parts)
 
-    def on_calculate_numerical(self): # As is
+    def on_calculate_numerical(self): # Copied
         self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END)
         if not hasattr(self,'top_instance') or not self.top_instance: self.display_message("Error","Derive formulas first."); return
         if not self.active_symbols_info: self.display_message("Error","No active symbols found."); return
@@ -455,6 +577,7 @@ class CircuitGUI(tk.Tk):
             else: self.display_message("Input Error",f"Missing value for '{name}' (symbol '{info['symbol']}')");all_ok=False;break
         if not all_ok: self.display_message("Calc Status","Aborted.");return
         if subs: self.display_message("Numerical Calc",f"Substituting: {{ {', '.join([f'{str(k)}:{v}' for k,v in subs.items()])} }}")
+
         res_str="Numerical Results:\n"; comp_name=self.target_comp_name_entry.get().strip(); node_name=self.target_node_name_entry.get().strip()
         if not comp_name and not node_name: res_str+="  No target specified. Enter GUI Comp. Name or Node Name.\n"
         else:
@@ -464,117 +587,27 @@ class CircuitGUI(tk.Tk):
                     res_str+=f"  --- For Comp (GUI:{comp_name}, SPICE:{details['spice_name']}) ---\n"
                     try:
                         v=self.top_instance.v(details['n1'],details['n2']); i=self.top_instance.i(details['spice_name']); p=self.top_instance.p(details['spice_name'])
-                        val_own=sympy.sympify(details['value_str']) if details['value_str'] else sympy.Float(0)
+                        val_own_expr = sympy.sympify(details['value_str']) if details['value_str'] else sympy.Float(0)
+                        val_own_num_expr = val_own_expr.subs(subs) if hasattr(val_own_expr, 'subs') else val_own_expr
+
                         v_n=self._eval_expr_to_float(v.subs(subs)); i_n=self._eval_expr_to_float(i.subs(subs)); p_n=self._eval_expr_to_float(p.subs(subs))
-                        val_own_n=self._eval_expr_to_float(val_own.subs(subs) if hasattr(val_own,'subs') else val_own)
+                        val_own_n=self._eval_expr_to_float(val_own_num_expr)
                         unit={"Resistor":"Ω","V_Source_DC":"V","I_Source_DC":"A"}.get(details['type'],"")
-                        if "Source" not in details['type']: res_str+=f"    Value: {val_own_n if isinstance(val_own_n,str) else f'{val_own_n:.4f}'} {unit}\n"
-                        res_str+=f"    Voltage: {v_n if isinstance(v_n,str) else f'{v_n:.4f}'} V\n"
-                        res_str+=f"    Current: {i_n if isinstance(i_n,str) else f'{i_n*1000:.4f}'} mA\n"
-                        res_str+=f"    Power: {p_n if isinstance(p_n,str) else f'{p_n*1000:.4f}'} mW\n"
-                    except Exception as e: res_str+=f"    Error V/I/P for '{comp_name}': {e}\n"
+
+                        vip_results_str_comp = f"    Value: {val_own_n if val_own_n is not None else 'N/A'} {unit}\n" if "Source" not in details['type'] else ""
+                        vip_results_str_comp += f"    Voltage: {v_n if v_n is not None else 'N/A'} V\n"
+                        vip_results_str_comp += f"    Current: {i_n*1000 if i_n is not None else 'N/A'} mA\n"
+                        vip_results_str_comp += f"    Power:   {p_n*1000 if p_n is not None else 'N/A'} mW\n"
+                        res_str += vip_results_str_comp
+                    except Exception as e: res_str+=f"    Error V/I/P for '{comp_name}': {type(e).__name__} - {e}\n"
                 else: res_str+=f"  Comp GUI Name '{comp_name}' not found.\n"
             if node_name:
                 res_str+=f"  --- For Node {node_name} ---\n"
                 try:
                     v_node=self.top_instance.v(node_name,'0'); v_n_n=self._eval_expr_to_float(v_node.subs(subs))
-                    res_str+=f"    V({node_name},'0'): {v_n_n if isinstance(v_n_n,str) else f'{v_n_n:.4f}'} V\n"
-                except Exception as e: res_str+=f"    Error V({node_name},'0'): {e}\n"
+                    res_str+=f"    V({node_name},'0'): {v_n_n if v_n_n is not None else 'N/A'} V\n"
+                except Exception as e: res_str+=f"    Error V({node_name},'0'): {type(e).__name__} - {e}\n"
         self.display_message("Numerical Results", res_str)
-
-    def _collect_advanced_solve_inputs(self): # As is
-        params_str = self.adv_params_to_solve_entry.get().strip()
-        if not params_str: self.display_message("Input Error", "No params to solve specified."); return None, None
-        params_to_solve_list = [p.strip() for p in params_str.split(',') if p.strip()]
-        if not params_to_solve_list: self.display_message("Input Error", "Params list empty."); return None, None
-        known_conditions_list = []
-        for cond_widgets in self.adv_known_condition_rows:
-            cond_type = cond_widgets['type'].get(); el_n1_str = cond_widgets['el_n1'].get().strip(); val_str = cond_widgets['val'].get().strip()
-            if cond_type and el_n1_str and val_str:
-                try: num_value = float(val_str)
-                except ValueError: self.display_message("Input Error", f"Invalid value '{val_str}'."); return None, None
-                condition = {'type': cond_type, 'value': num_value}
-                if cond_type == 'voltage': condition['node1'] = el_n1_str; condition['node2'] = cond_widgets['n2'].get().strip() or '0'
-                elif cond_type in ['current', 'power']: condition['element'] = el_n1_str
-                else: self.display_message("Input Error", f"Unknown condition type: {cond_type}"); return None, None
-                known_conditions_list.append(condition)
-        if not known_conditions_list: self.display_message("Input Error", "No valid conditions."); return None, None
-        return params_to_solve_list, known_conditions_list
-
-    def _run_advanced_solve(self): # As is
-        self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END); self.results_text.config(state=tk.DISABLED)
-        self.display_message("Advanced Solve", "Starting advanced problem solving...")
-        circuit_data = self._collect_circuit_data()
-        if not circuit_data: self.display_message("Circuit Error", "No circuit defined."); return
-
-        spice_string = self._generate_spice_netlist(circuit_data)
-        if not self._is_spice_sufficient(spice_string, circuit_data):
-             self.display_message("SPICE Error", "SPICE netlist seems insufficient. Cannot proceed."); return
-        self.display_message("Generated SPICE for Advanced Solve", spice_string)
-
-        params_to_solve, known_conditions = self._collect_advanced_solve_inputs()
-        if not params_to_solve or not known_conditions: return
-
-        self.display_message("Advanced Solver Inputs",
-                             f"  Parameters to Solve: {params_to_solve}\n" +
-                             f"  Known Conditions: {json.dumps(known_conditions, indent=2)}")
-        temp_spice_file_path = ""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.sp', dir='.') as tmp_file:
-                tmp_file.write(spice_string); temp_spice_file_path = tmp_file.name
-            self.display_message("Solver Status", f"Running SymbolicCircuitProblemSolver with {os.path.basename(temp_spice_file_path)}...")
-            adv_solver = SymbolicCircuitProblemSolver(netlist_path=temp_spice_file_path)
-            solution_dict = adv_solver.solve_for_unknowns(known_conditions, params_to_solve)
-            solution_str = "--- Solved Parameter Values ---\n"
-            if not solution_dict: solution_str += "  No solution found or solution is empty.\n"
-            else:
-                for var_symbol, val_expr in solution_dict.items():
-                    solution_str += f"  {str(var_symbol)} = {sympy.pretty(val_expr) if hasattr(val_expr, '_pretty') else str(val_expr)}\n"
-                    if hasattr(val_expr, 'evalf'):
-                        try: solution_str += f"    Numerical: {float(val_expr.evalf()):.4g}\n"
-                        except: solution_str += f"    (Expression: {val_expr.evalf()})\n"
-                    else:
-                        try: solution_str += f"    Numerical: {float(val_expr):.4g}\n"
-                        except: solution_str += f"    (Value: {val_expr})\n"
-            self.display_message("Advanced Solution", solution_str)
-
-            if solution_dict and adv_solver.top_instance:
-                self.display_message("Post-Solve Analysis", "Calculating V, I, P with solved values...")
-                final_subs_for_vip = {}
-                if adv_solver.top_instance.paramsd:
-                    for p_sym, p_expr in adv_solver.top_instance.paramsd.items(): final_subs_for_vip[p_sym] = p_expr
-                for k_sym, v_expr_s in final_subs_for_vip.items():
-                    if hasattr(v_expr_s, 'subs'): final_subs_for_vip[k_sym] = v_expr_s.subs(solution_dict)
-                for solved_s, solved_v in solution_dict.items(): final_subs_for_vip[solved_s] = solved_v
-
-                vip_results_str = "\n--- Detailed V, I, P (using solved values) ---\n"
-                for comp_data in circuit_data:
-                    comp_gui_name = comp_data['name']
-                    comp_details_for_nodes = self._get_component_details_from_gui_name(comp_gui_name, circuit_data)
-                    if not comp_details_for_nodes: continue
-                    actual_spice_name = comp_details_for_nodes['spice_name']
-                    vip_results_str += f"--- {comp_gui_name} (as {actual_spice_name}) ---\n"
-                    try:
-                        v=adv_solver.top_instance.v(comp_details_for_nodes['n1'], comp_details_for_nodes['n2']); i=adv_solver.top_instance.i(actual_spice_name); p=adv_solver.top_instance.p(actual_spice_name)
-                        val_own=sympy.sympify(comp_details_for_nodes['value_str']) if comp_details_for_nodes['value_str'] else sympy.Float(0)
-                        v_n=self._eval_expr_to_float(v.subs(final_subs_for_vip)); i_n=self._eval_expr_to_float(i.subs(final_subs_for_vip)); p_n=self._eval_expr_to_float(p.subs(final_subs_for_vip))
-                        val_own_n=self._eval_expr_to_float(val_own.subs(final_subs_for_vip) if hasattr(val_own,'subs') else val_own)
-                        unit={"Resistor":"Ω","V_Source_DC":"V","I_Source_DC":"A"}.get(comp_details_for_nodes['type'],"")
-                        if "Source" not in comp_details_for_nodes['type']: vip_results_str += f"    Value: {val_own_n if isinstance(val_own_n,str) else f'{val_own_n:.4f}'} {unit}\n"
-                        vip_results_str += f"    Voltage: {v_n if isinstance(v_n,str) else f'{v_n:.4f}'} V\n"
-                        vip_results_str += f"    Current: {i_n if isinstance(i_n,str) else f'{i_n*1000:.4f}'} mA\n"
-                        vip_results_str += f"    Power: {p_n if isinstance(p_n,str) else f'{p_n*1000:.4f}'} mW\n"
-                    except Exception as e_vip: vip_results_str += f"  Error V/I/P: {e_vip}\n"
-                self.display_message("V/I/P Results", vip_results_str)
-        except (scs_errors.ScsParserError, scs_errors.ScsInstanceError, scs_errors.ScsToolError, ValueError) as e:
-            self.display_message("Advanced Solver Error", f"{type(e).__name__}: {e}")
-        except Exception as e:
-            self.display_message("Advanced Solver Error (Unexpected)", f"{type(e).__name__}: {e}")
-            import traceback; traceback.print_exc()
-        finally:
-            if temp_spice_file_path and os.path.exists(temp_spice_file_path):
-                try: os.remove(temp_spice_file_path)
-                except Exception as e_remove: print(f"Error removing temp file: {e_remove}")
 
     def _save_circuit_to_file(self): # As is
         circuit_data = self._collect_circuit_data()
@@ -601,30 +634,26 @@ class CircuitGUI(tk.Tk):
             self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END); self.results_text.config(state=tk.DISABLED)
             if hasattr(self, 'top_instance'): self.top_instance = None
             if hasattr(self, 'active_symbols_info'): self.active_symbols_info.clear()
+            self._redraw_canvas() # Redraw after loading
         except FileNotFoundError: self.display_message("Load Error", f"File not found: {filepath}")
         except json.JSONDecodeError: self.display_message("Load Error", "Not valid JSON.")
         except ValueError as ve: self.display_message("Load Error", str(ve))
         except Exception as e: self.display_message("Load Error", f"Failed to load: {e}")
 
-    def _select_component_for_placement(self, comp_type): # Modified for cursor
-        if self.currently_selected_wire_info:
-            try: self.canvas.itemconfig(self.currently_selected_wire_info['canvas_line_id'], fill=self.DEFAULT_WIRE_COLOR, width=max(1, int(self.DEFAULT_WIRE_WIDTH*self.canvas_scale)))
-            except tk.TclError: pass
-            self.currently_selected_wire_info = None
-        self._clear_selection_and_properties_editor()
+    def _select_component_for_placement(self, comp_type): # Modified for cursor and selection clear
         self.selected_component_to_place = comp_type
         self.wiring_mode = False
         self.wire_start_coords = None
         if self.temp_wire_start_indicator: self.canvas.delete(self.temp_wire_start_indicator); self.temp_wire_start_indicator = None
-        if comp_type: self.display_message("Status", f"{comp_type} selected. Click on canvas to place."); self.canvas.config(cursor="crosshair")
-        else: self.display_message("Status", "Component placement deselected."); self.canvas.config(cursor="arrow")
+
+        self._clear_selection_and_properties_editor() # Clear component and wire selection
+        if comp_type:
+            self.display_message("Status", f"{comp_type} selected. Click on canvas to place."); self.canvas.config(cursor="crosshair")
+        else:
+            self.display_message("Status", "Component placement deselected."); self.canvas.config(cursor="arrow")
         self._update_button_states()
 
-    def _select_wire_tool(self): # Modified for cursor
-        if self.currently_selected_wire_info:
-            try: self.canvas.itemconfig(self.currently_selected_wire_info['canvas_line_id'], fill=self.DEFAULT_WIRE_COLOR, width=max(1, int(self.DEFAULT_WIRE_WIDTH*self.canvas_scale)))
-            except tk.TclError: pass
-            self.currently_selected_wire_info = None
+    def _select_wire_tool(self): # Modified for cursor and selection clear
         self._clear_selection_and_properties_editor()
         self.wiring_mode = True
         self.selected_component_to_place = None
@@ -634,17 +663,17 @@ class CircuitGUI(tk.Tk):
         self.display_message("Status", "Wire tool selected. Click start, then end point.")
         self.canvas.config(cursor="pencil")
 
-
     def _select_select_tool(self): # Modified for cursor
         self.wiring_mode = False
         self.selected_component_to_place = None
         if self.temp_wire_start_indicator: self.canvas.delete(self.temp_wire_start_indicator); self.temp_wire_start_indicator = None
         self.wire_start_coords = None
+        # Do not clear selection when select tool is chosen, user might want to re-select or confirm.
         self._update_button_states()
         self.display_message("Status", "Select tool active. Click on components or wires.")
         self.canvas.config(cursor="arrow")
 
-    def _on_canvas_button_press(self, event): # Modified for snap-to-grid
+    def _on_canvas_button_press(self, event): # Modified for snap-to-grid and selection highlight
         logical_x, logical_y = self._canvas_to_logical_coords(event.x, event.y)
         snapped_logical_x, snapped_logical_y = self._snap_to_grid(logical_x, logical_y)
         if self.wiring_mode:
@@ -664,7 +693,9 @@ class CircuitGUI(tk.Tk):
                 if clicked_pin_info: lx2,ly2 = clicked_pin_info['coords']; pending_end_info = {'gui_name': clicked_pin_info['gui_name'], 'pin_index': clicked_pin_info['pin_index']}
                 wire_id_str = f"wire_{self.next_wire_id}"; self.next_wire_id += 1
                 new_wire_entry = {'id': wire_id_str, 'x1': lx1, 'y1': ly1, 'x2': lx2, 'y2': ly2,
-                                 'start_comp': self.wire_pending_connection_start, 'end_comp': pending_end_info, 'canvas_line_id': None}
+                                 'start_comp': self.wire_pending_connection_start,
+                                 'end_comp': pending_end_info,
+                                 'canvas_line_id': None}
                 self.drawn_wires.append(new_wire_entry)
                 self.display_message("Wiring", f"Wire {wire_id_str} drawn to logical ({lx2:.0f},{ly2:.0f}).")
                 if self.wire_pending_connection_start and pending_end_info : self._update_nodes_from_wire(self.wire_pending_connection_start, pending_end_info)
@@ -715,11 +746,12 @@ class CircuitGUI(tk.Tk):
                 self.currently_selected_wire_info = clicked_wire_info
                 self.prop_selected_label.config(text=f"Selected: {clicked_wire_info['id']}")
                 self.prop_type_label.config(text="Type: Wire")
-        self._redraw_canvas() # Handles highlighting for either component or wire
+        self._redraw_canvas()
         self._update_button_states()
 
-    # ... (Rest of methods as defined from previous steps, including _on_canvas_drag_motion, _on_canvas_button_release, etc.)
-    def _on_canvas_drag_motion(self, event): # Modified for wire updates
+    # ... (Rest of methods as previously defined, including _on_canvas_drag_motion, _on_canvas_button_release, etc.)
+    # ... (Make sure they are all present from previous full overwrite state)
+    def _on_canvas_drag_motion(self, event): # Copied & adapted for logical coord updates during wire drag
         if self.drag_data.get('item_gui_name'):
             item_gui_name = self.drag_data['item_gui_name']
             dx_canvas = event.x - self.drag_data['current_drag_mouse_x_canvas']
@@ -736,10 +768,7 @@ class CircuitGUI(tk.Tk):
 
             for wire_info in self.drawn_wires:
                 needs_visual_update = False
-                # Important: canvas.coords() returns current visual coords, not necessarily logical ones scaled.
-                # We need to fetch current coords, then update relevant end(s)
                 temp_new_wire_canvas_coords = list(self.canvas.coords(wire_info['canvas_line_id']))
-
                 if wire_info.get('start_comp') and wire_info['start_comp']['gui_name'] == item_gui_name:
                     target_pin_index = wire_info['start_comp']['pin_index']
                     for pin_lx, pin_ly, p_idx in new_pin_logical_coords_list:
@@ -757,12 +786,11 @@ class CircuitGUI(tk.Tk):
                                        temp_new_wire_canvas_coords[0], temp_new_wire_canvas_coords[1],
                                        temp_new_wire_canvas_coords[2], temp_new_wire_canvas_coords[3])
 
-    def _on_canvas_button_release(self, event): # Modified for wire data finalization
+    def _on_canvas_button_release(self, event): # Copied & adapted
         moved_comp_gui_name_final = self.drag_data.get('item_gui_name')
         if moved_comp_gui_name_final:
             final_raw_logical_x = self.drag_data['original_item_logical_x'] + (self._canvas_to_logical_coords(event.x, 0)[0] - self._canvas_to_logical_coords(self.drag_data['press_mouse_x_canvas'], 0)[0])
             final_raw_logical_y = self.drag_data['original_item_logical_y'] + (self._canvas_to_logical_coords(0, event.y)[1] - self._canvas_to_logical_coords(0, self.drag_data['press_mouse_y_canvas'])[1])
-
             final_snapped_lx, final_snapped_ly = self._snap_to_grid(final_raw_logical_x, final_raw_logical_y)
 
             for item_info in self.placed_graphical_items:
@@ -793,51 +821,52 @@ class CircuitGUI(tk.Tk):
                           'original_item_logical_x':0, 'original_item_logical_y':0}
         self._update_button_states()
 
-    def _draw_component_symbol(self, canvas_x, canvas_y, comp_type, gui_name, scale=1.0):
+    def _draw_component_symbol(self, canvas_x, canvas_y, comp_type, gui_name, scale=1.0): # Modified
         tag = f"comp_{gui_name}"; canvas_ids = [];
         scaled_size = 20 * scale
-        line_width = max(1, int(self.DEFAULT_COMPONENT_WIDTH * scale)) # Use constant
-        selected_line_width = max(1, int(self.SELECTED_COMPONENT_WIDTH * scale)) # Use constant
-        current_outline = self.DEFAULT_OUTLINE_COLOR
-        current_width = line_width
+        # Use constants for default width, apply scaling
+        default_scaled_width = max(1, int(self.DEFAULT_COMPONENT_WIDTH * scale))
+        selected_scaled_width = max(1, int(self.SELECTED_COMPONENT_WIDTH * scale))
 
-        if self.currently_selected_canvas_item_gui_name == gui_name: # Apply selection style directly
-            current_outline = self.SELECTED_OUTLINE_COLOR
-            current_width = selected_line_width
+        current_outline_color = self.DEFAULT_OUTLINE_COLOR
+        current_line_width = default_scaled_width
+
+        if self.currently_selected_canvas_item_gui_name == gui_name:
+            current_outline_color = self.SELECTED_OUTLINE_COLOR
+            current_line_width = selected_scaled_width
+
+        font_size = max(6, int(8*scale))
 
         if comp_type == "Resistor":
             canvas_ids.append(self.canvas.create_rectangle(canvas_x - scaled_size*1.5, canvas_y - scaled_size*0.5,
                                                            canvas_x + scaled_size*1.5, canvas_y + scaled_size*0.5,
-                                                           outline=current_outline,fill="lightblue",tags=(tag,), width=current_width))
+                                                           outline=current_outline_color,fill="lightblue",tags=(tag,), width=current_line_width))
         elif comp_type == "V_Source_DC":
             canvas_ids.append(self.canvas.create_oval(canvas_x - scaled_size, canvas_y - scaled_size,
                                                       canvas_x + scaled_size, canvas_y + scaled_size,
-                                                      outline=current_outline,fill="lightgreen",tags=(tag,), width=current_width))
-            # For +/- lines, use default component width, not selection width (or make it an attribute of the line itself)
-            plus_minus_line_width = max(1, int(self.DEFAULT_COMPONENT_WIDTH * scale)) # Or a specific width for these
-            if comp_type == "V_Source_DC" and self.currently_selected_canvas_item_gui_name == gui_name: plus_minus_line_width = max(1, int(self.SELECTED_COMPONENT_WIDTH * scale))
+                                                      outline=current_outline_color,fill="lightgreen",tags=(tag,), width=current_line_width))
+            plus_minus_line_w = default_scaled_width # Internal lines might not always get thicker on selection
+            if self.currently_selected_canvas_item_gui_name == gui_name: plus_minus_line_w = selected_scaled_width
 
-
-            canvas_ids.append(self.canvas.create_line(canvas_x, canvas_y - scaled_size*0.6, canvas_x, canvas_y - scaled_size*0.2, tags=(tag,), width=plus_minus_line_width, fill=current_outline))
-            canvas_ids.append(self.canvas.create_line(canvas_x - scaled_size*0.2, canvas_y - scaled_size*0.4, canvas_x + scaled_size*0.2, canvas_y - scaled_size*0.4, tags=(tag,), width=plus_minus_line_width, fill=current_outline))
-            canvas_ids.append(self.canvas.create_line(canvas_x - scaled_size*0.2, canvas_y + scaled_size*0.4, canvas_x + scaled_size*0.2, canvas_y + scaled_size*0.4, width=max(1, int(2*scale)),tags=(tag,), fill=current_outline)) # Thicker minus
+            canvas_ids.append(self.canvas.create_line(canvas_x, canvas_y - scaled_size*0.6, canvas_x, canvas_y - scaled_size*0.2, tags=(tag,), width=plus_minus_line_w, fill=current_outline_color))
+            canvas_ids.append(self.canvas.create_line(canvas_x - scaled_size*0.2, canvas_y - scaled_size*0.4, canvas_x + scaled_size*0.2, canvas_y - scaled_size*0.4, tags=(tag,), width=plus_minus_line_w, fill=current_outline_color))
+            canvas_ids.append(self.canvas.create_line(canvas_x - scaled_size*0.2, canvas_y + scaled_size*0.4, canvas_x + scaled_size*0.2, canvas_y + scaled_size*0.4, width=max(1, int(2*scale)),tags=(tag,), fill=current_outline_color)) # Thicker minus
         elif comp_type == "I_Source_DC":
             canvas_ids.append(self.canvas.create_oval(canvas_x - scaled_size, canvas_y - scaled_size,
                                                       canvas_x + scaled_size, canvas_y + scaled_size,
-                                                      outline=current_outline,fill="lightpink",tags=(tag,), width=current_width))
-            arrow_line_width = max(1, int(self.DEFAULT_COMPONENT_WIDTH * scale))
-            if self.currently_selected_canvas_item_gui_name == gui_name: arrow_line_width = max(1, int(self.SELECTED_COMPONENT_WIDTH * scale))
-            canvas_ids.append(self.canvas.create_line(canvas_x, canvas_y + scaled_size*0.6, canvas_x, canvas_y - scaled_size*0.6, tags=(tag,), width=arrow_line_width, fill=current_outline))
+                                                      outline=current_outline_color,fill="lightpink",tags=(tag,), width=current_line_width))
+            arrow_line_w = default_scaled_width
+            if self.currently_selected_canvas_item_gui_name == gui_name: arrow_line_w = selected_scaled_width
+            canvas_ids.append(self.canvas.create_line(canvas_x, canvas_y + scaled_size*0.6, canvas_x, canvas_y - scaled_size*0.6, tags=(tag,), width=arrow_line_w, fill=current_outline_color))
             canvas_ids.append(self.canvas.create_line(canvas_x, canvas_y - scaled_size*0.6,
                                                       canvas_x - scaled_size*0.2, canvas_y - scaled_size*0.3,
                                                       canvas_x + scaled_size*0.2, canvas_y - scaled_size*0.3,
-                                                      canvas_x, canvas_y - scaled_size*0.6, smooth=True,tags=(tag,), width=arrow_line_width, fill=current_outline))
-        else: canvas_ids.append(self.canvas.create_text(canvas_x,canvas_y,text=f"{comp_type[:3]}?",tags=(tag,), font=("Arial", max(6, int(8*scale)))))
-        font_size = max(6, int(8*scale))
+                                                      canvas_x, canvas_y - scaled_size*0.6, smooth=True,tags=(tag,), width=arrow_line_w, fill=current_outline_color))
+        else: canvas_ids.append(self.canvas.create_text(canvas_x,canvas_y,text=f"{comp_type[:3]}?",tags=(tag,), font=("Arial", font_size)))
         canvas_ids.append(self.canvas.create_text(canvas_x, canvas_y - scaled_size - (font_size/2 + 2), text=gui_name,font=("Arial",font_size),tags=(tag,)))
         return canvas_ids
 
-    def _populate_properties_editor(self, gui_name):
+    def _populate_properties_editor(self, gui_name): # Modified
         if self.currently_selected_wire_info:
             try: self.canvas.itemconfig(self.currently_selected_wire_info['canvas_line_id'], fill=self.DEFAULT_WIRE_COLOR, width=max(1, int(self.DEFAULT_WIRE_WIDTH*self.canvas_scale)))
             except tk.TclError: pass
@@ -854,18 +883,16 @@ class CircuitGUI(tk.Tk):
         else: self._clear_selection_and_properties_editor()
         self._update_button_states()
 
-    def _clear_selection_and_properties_editor(self):
+    def _clear_selection_and_properties_editor(self): # Modified
         if self.currently_selected_canvas_item_gui_name:
-            old_tag = f"comp_{self.currently_selected_canvas_item_gui_name}"
-            for cid in self.canvas.find_withtag(old_tag):
-                item_type = self.canvas.type(cid)
-                # For complex symbols, might need to store original colors/widths to revert accurately
-                # For now, just set to default component outline/width for shapes.
-                if item_type not in ["text"]: # Avoid changing fill of text, only outline for shapes
-                     self.canvas.itemconfig(cid, outline=self.DEFAULT_OUTLINE_COLOR, width=max(1, int(self.DEFAULT_COMPONENT_WIDTH*self.canvas_scale)))
-                     # For V/I sources, internal lines also need reset if their color/width was changed for selection
-                     # This simplified reset might not correctly revert all parts of complex selected symbols.
-                     # A more robust way is to iterate canvas_item_ids stored in placed_graphical_items.
+            # Find the item to get its canvas_item_ids for precise deselection
+            item_to_deselect = next((item for item in self.placed_graphical_items if item['id'] == self.currently_selected_canvas_item_gui_name), None)
+            if item_to_deselect:
+                for c_id in item_to_deselect['canvas_item_ids']:
+                    item_type = self.canvas.type(c_id)
+                    if item_type not in ["text"]: # Avoid changing fill of text, only outline for shapes
+                         try: self.canvas.itemconfig(c_id, outline=self.DEFAULT_OUTLINE_COLOR, width=max(1, int(self.DEFAULT_COMPONENT_WIDTH*self.canvas_scale)))
+                         except tk.TclError: pass # Item might have been deleted
         if self.currently_selected_wire_info:
             try: self.canvas.itemconfig(self.currently_selected_wire_info['canvas_line_id'], fill=self.DEFAULT_WIRE_COLOR, width=max(1, int(self.DEFAULT_WIRE_WIDTH*self.canvas_scale)))
             except tk.TclError: pass
@@ -874,9 +901,9 @@ class CircuitGUI(tk.Tk):
         self.prop_selected_label.config(text="Selected: None"); self.prop_type_label.config(text="Type: N/A")
         for widget in [self.prop_name_entry,self.prop_value_entry,self.prop_n1_entry,self.prop_n2_entry]:
             widget.config(state=tk.DISABLED); widget.delete(0,tk.END)
+        # self._update_button_states() # Called by context
 
-    # ... (Rest of methods: _update_component_properties, _update_button_states, etc. are assumed present and correct from previous steps)
-    def _update_component_properties(self): # Copied
+    def _update_component_properties(self): # Modified for redraw
         if not self.currently_selected_canvas_item_gui_name: return
         old_gui_name = self.currently_selected_canvas_item_gui_name
         new_gui_name = self.prop_name_entry.get().strip()
@@ -892,21 +919,22 @@ class CircuitGUI(tk.Tk):
             entry_widgets['value'].delete(0,tk.END); entry_widgets['value'].insert(0, self.prop_value_entry.get().strip())
             entry_widgets['n1'].delete(0,tk.END); entry_widgets['n1'].insert(0, self.prop_n1_entry.get().strip())
             entry_widgets['n2'].delete(0,tk.END); entry_widgets['n2'].insert(0, self.prop_n2_entry.get().strip())
-        canvas_item_info_to_update_idx = -1
-        updated_placed_item_info = None
-        for i, item_info in enumerate(self.placed_graphical_items):
+
+        updated_graphical_item = False
+        for item_info in self.placed_graphical_items:
             if item_info['id'] == old_gui_name:
-                canvas_item_info_to_update_idx = i; updated_placed_item_info = item_info; break
-        if updated_placed_item_info:
-            updated_placed_item_info['id'] = new_gui_name
-            if old_gui_name != new_gui_name:
-                self.currently_selected_canvas_item_gui_name = new_gui_name
-                self._redraw_canvas()
-        self.prop_selected_label.config(text=f"Selected: {new_gui_name}")
+                item_info['id'] = new_gui_name
+                updated_graphical_item = True; break
+
+        self.currently_selected_canvas_item_gui_name = new_gui_name
+        if old_gui_name != new_gui_name or updated_graphical_item: # If name changed, or any other prop that affects visuals
+            self._redraw_canvas() # Redraw to update tags and labels
+
+        self.prop_selected_label.config(text=f"Selected: {new_gui_name}") # Update label in editor
         self.display_message("Properties", f"Properties for '{old_gui_name}' updated to '{new_gui_name}'.")
         self._update_button_states()
 
-    def _update_button_states(self): # Copied
+    def _update_button_states(self): # As is
         has_comp_sel = bool(self.currently_selected_canvas_item_gui_name)
         has_wire_sel = bool(self.currently_selected_wire_info)
         self.delete_button.config(state=tk.NORMAL if has_comp_sel or has_wire_sel else tk.DISABLED)
@@ -914,7 +942,7 @@ class CircuitGUI(tk.Tk):
         for widget in [self.prop_name_entry,self.prop_value_entry,self.prop_n1_entry,self.prop_n2_entry]:
             widget.config(state=tk.NORMAL if has_comp_sel else tk.DISABLED)
 
-    def _delete_wire_by_id(self, wire_id_to_delete): # Copied
+    def _delete_wire_by_id(self, wire_id_to_delete): # As is
         wire_info_to_delete = None
         for wire in self.drawn_wires:
             if wire['id'] == wire_id_to_delete: wire_info_to_delete = wire; break
@@ -927,7 +955,7 @@ class CircuitGUI(tk.Tk):
         if end_comp_info: self._update_pin_node_after_wire_deletion(end_comp_info['gui_name'], end_comp_info['pin_index'])
         self.display_message("Delete", f"Wire '{wire_id_to_delete}' deleted.")
 
-    def _delete_selected(self): # Copied
+    def _delete_selected(self): # Modified for redraw
         if self.currently_selected_canvas_item_gui_name:
             gui_name = self.currently_selected_canvas_item_gui_name
             wire_ids_to_delete = []
@@ -935,8 +963,9 @@ class CircuitGUI(tk.Tk):
                 if (wire_info_iter.get('start_comp') and wire_info_iter['start_comp']['gui_name'] == gui_name) or \
                    (wire_info_iter.get('end_comp') and wire_info_iter['end_comp']['gui_name'] == gui_name):
                     wire_ids_to_delete.append(wire_info_iter['id'])
-            for wire_id_val in wire_ids_to_delete: self._delete_wire_by_id(wire_id_val)
-            self.canvas.delete(f"comp_{gui_name}")
+            for wire_id_val in wire_ids_to_delete: self._delete_wire_by_id(wire_id_val) # This will call _redraw_canvas if nodes change
+
+            # self.canvas.delete(f"comp_{gui_name}") # Will be deleted by _redraw_canvas
             self.placed_graphical_items = [item for item in self.placed_graphical_items if item['id'] != gui_name]
             idx_to_remove = -1
             for i, entry_dict in enumerate(self.component_entries):
@@ -946,11 +975,12 @@ class CircuitGUI(tk.Tk):
             self.display_message("Delete", f"Component '{gui_name}' and connected wires deleted.")
         elif self.currently_selected_wire_info:
             self._delete_wire_by_id(self.currently_selected_wire_info['id'])
+
         self._clear_selection_and_properties_editor()
         self._update_button_states()
         self._redraw_canvas()
 
-    def _update_pin_node_after_wire_deletion(self, comp_gui_name, pin_idx): # Copied
+    def _update_pin_node_after_wire_deletion(self, comp_gui_name, pin_idx): # As is
         if comp_gui_name is None: return
         current_node_name = self._get_node_for_pin(comp_gui_name, pin_idx)
         if not current_node_name or current_node_name == "?" or not current_node_name.startswith("node_auto_"): return
@@ -976,13 +1006,13 @@ class CircuitGUI(tk.Tk):
             self.display_message("Node Update", f"Pin {pin_idx} of '{comp_gui_name}' (node '{current_node_name}') reset to '?'.")
             if self.currently_selected_canvas_item_gui_name == comp_gui_name: self._populate_properties_editor(comp_gui_name)
 
-    def _get_node_for_pin(self, gui_name, pin_index): # Copied
+    def _get_node_for_pin(self, gui_name, pin_index): # As is
         for entry_widgets in self.component_entries:
             if entry_widgets['name'].get() == gui_name:
                 return entry_widgets['n1'].get() if pin_index == 0 else entry_widgets['n2'].get()
         return "?"
 
-    def _set_node_for_pin(self, gui_name, pin_index, node_name): # Copied
+    def _set_node_for_pin(self, gui_name, pin_index, node_name): # As is
         for entry_widgets in self.component_entries:
             if entry_widgets['name'].get() == gui_name:
                 target_entry = entry_widgets['n1'] if pin_index == 0 else entry_widgets['n2']
@@ -992,7 +1022,7 @@ class CircuitGUI(tk.Tk):
                 return
         self.display_message("Error", f"Could not set node for component {gui_name} (not found).")
 
-    def _update_nodes_from_wire(self, start_comp_info, end_comp_info): # Copied
+    def _update_nodes_from_wire(self, start_comp_info, end_comp_info): # As is (with node merging refinement)
         if not (start_comp_info and end_comp_info):
             if start_comp_info or end_comp_info:
                  self.display_message("Wiring", "One end of the wire is floating. Node names not automatically assigned to that end.")
@@ -1007,22 +1037,29 @@ class CircuitGUI(tk.Tk):
         if is_node_start_valid and is_node_end_valid:
             if node_start_val == node_end_val: final_node_name = node_start_val
             else:
-                final_node_name = node_start_val
-                self.display_message("Wiring Warning", f"Nodes '{node_start_val}' and '{node_end_val}' are being merged to node '{final_node_name}'. All components connected to '{node_end_val}' should be manually updated if this was not intended.")
+                final_node_name = node_start_val # Default to start_node_val
+                self.display_message("Wiring Warning", f"Nodes '{node_start_val}' and '{node_end_val}' are being merged to node '{final_node_name}'. All components connected to '{node_end_val}' must be manually updated if this was not intended or if they should also connect to '{final_node_name}'.")
+                # Update the just-connected end_comp_info pin to the new merged name
+                self._set_node_for_pin(end_comp_info['gui_name'], end_comp_info['pin_index'], final_node_name)
+                # Iterate all other components and update their pins if they were connected to node_end_val
                 for comp_row in self.component_entries:
                     comp_gui_name_iter = comp_row['name'].get()
+                    # Skip the two components already handled by the current wire
+                    if comp_gui_name_iter == start_comp_info['gui_name'] or comp_gui_name_iter == end_comp_info['gui_name']:
+                        continue
                     if self._get_node_for_pin(comp_gui_name_iter, 0) == node_end_val:
                         self._set_node_for_pin(comp_gui_name_iter, 0, final_node_name)
                     if self._get_node_for_pin(comp_gui_name_iter, 1) == node_end_val:
                         self._set_node_for_pin(comp_gui_name_iter, 1, final_node_name)
+
         elif is_node_start_valid: final_node_name = node_start_val
         elif is_node_end_valid: final_node_name = node_end_val
         else: final_node_name = f"node_auto_{self.next_auto_node_id}"; self.next_auto_node_id += 1
 
         self._set_node_for_pin(start_comp_info['gui_name'], start_comp_info['pin_index'], final_node_name)
         self._set_node_for_pin(end_comp_info['gui_name'], end_comp_info['pin_index'], final_node_name)
-        self.display_message("Wiring", f"Connected {start_comp_info['gui_name']}[pin{start_comp_info['pin_index']}] and {end_comp_info['gui_name']}[pin{end_comp_info['pin_index']}] to node '{final_node_name}'.")
-
+        if not (is_node_start_valid and is_node_end_valid and node_start_val == node_end_val) : # Avoid redundant message if already connected
+            self.display_message("Wiring", f"Connected {start_comp_info['gui_name']}[pin{start_comp_info['pin_index']}] and {end_comp_info['gui_name']}[pin{end_comp_info['pin_index']}] to node '{final_node_name}'.")
 
 if __name__ == '__main__':
     app = CircuitGUI()
