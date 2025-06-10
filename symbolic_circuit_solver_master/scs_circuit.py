@@ -2,8 +2,8 @@
     
     Holds element of circuits after parsing the netlist. 
 """
-import scs_errors
-import scs_analysis
+from . import scs_errors
+from . import scs_analysis
 
 import time
 import logging
@@ -107,7 +107,7 @@ class TopCircuit(Circuit):
                 scs_analysis.analysis_dict[analysis.type](analysis.paramsd, analysis.paramsl, instance, file_prefix)
                 logging.info("Analysis: .%s '%s' performed in: %f s" %
                              (analysis.type, analysis.paramsl[0], time.clock() - time1))
-            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError), e:
+            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError) as e:
                 logging.warning(e)
                 logging.warning("Analysis: %s %s not performed" % (analysis.type, analysis.paramsl[0]))
 

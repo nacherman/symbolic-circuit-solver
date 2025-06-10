@@ -7,8 +7,8 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
-import scs_parser
-import scs_errors
+from . import scs_parser
+from . import scs_errors
 
 __author__ = "Tomasz Kniola"
 __credits__ = ["Tomasz Kniola"]
@@ -41,7 +41,7 @@ def measure_analysis(param_d, param_l, instance, file_sufix):
     """
     filename = "%s.results" % file_sufix
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items(): #iteritems -> items
         # tokens = scs_parser.parse_param_expresion(value)
         # try:
         #    value =  float(sympy.sympify(scs_parser.params2values(tokens,instance.paramsd)))
@@ -127,7 +127,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         raise scs_errors.ScsAnalysisError("Bad sweep parameter for .dc analysis: %s" % config['sweep'])
 
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items(): #iteritems -> items
         tokens = scs_parser.parse_param_expresion(value)
         try:
             value = float(sympy.sympify(scs_parser.params2values(tokens, instance.paramsd),sympy.abc._clash))
@@ -169,7 +169,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         try:
             plt.xscale(config['xscale'])
             plt.yscale(config['yscale'])
-        except ValueError, e:
+        except ValueError as e:
             raise scs_errors.ScsAnalysisError(e)
 
         plt.xlabel(r'$%s$' % str(xsym))
@@ -275,7 +275,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
 
             p = 0
             titled = 1
-            for pole, degree in poles_r.iteritems():
+            for pole, degree in poles_r.items(): #iteritems -> items
                 if pole == 0:
                     titled *= s ** degree
                 else:
@@ -283,7 +283,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                 p += 1
             z = 0
             titlen = 1
-            for zero, degree in zeros_r.iteritems():
+            for zero, degree in zeros_r.items(): #iteritems -> items
                 if zero == 0:
                     titlen *= s ** degree
                 else:
@@ -317,7 +317,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
             try:
                 plt.xscale(config['fscale'])
                 plt.yscale(config['yscale'])
-            except ValueError, e:
+            except ValueError as e:
                 raise scs_errors.ScsAnalysisError(e)
 
             plt.xlabel('f [Hz]')
