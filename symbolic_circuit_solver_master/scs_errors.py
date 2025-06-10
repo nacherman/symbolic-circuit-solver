@@ -16,6 +16,11 @@ class ScsParserError(BaseException):
     pass
 
 
+class ScsToolError(BaseException):
+    """ Error which occured during the symbolic tool operation.
+    """
+    pass
+
 class ScsInstanceError(BaseException):
     """ Error which occured during instantiating or solving a circuit.
     """

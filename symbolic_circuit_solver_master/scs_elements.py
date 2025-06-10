@@ -20,8 +20,8 @@ Those elements are part of instance not circuit.
 
 import sympy
 import sympy.abc
-import scs_errors
-import scs_parser
+from . import scs_errors
+from . import scs_parser
 
 __author__ = "Tomasz Kniola"
 __credits__ = ["Tomasz Kniola"]

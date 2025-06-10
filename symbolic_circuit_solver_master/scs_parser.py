@@ -11,8 +11,8 @@ import sympy
 import sympy.abc
 import logging
 
-import scs_circuit
-import scs_errors
+from . import scs_circuit
+from . import scs_errors
 
 __author__ = "Tomasz Kniola"
 __credits__ = ["Tomasz Kniola"]
@@ -22,8 +22,8 @@ __version__ = "0.0.1"
 __email__ = "kniola.tomasz@gmail.com"
 __status__ = "development"
 
-# Matches line with comment at the end like: foo $ bar
-reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>\$.*$)')
+# Matches line with comment at the end like: foo $ bar OR foo ; bar
+reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>[\$;].*$)')
 # Matches whole line with parameter definition at the end like: foo bar = 'spam spam spam'
 reg_param_with_rest = re.compile('(?P<rest>.*)(?P<param>(\s.+?=\s*?\'.*?\'$)|(\s.+?=\s*?\".*?\"$))')
 # Matches just the parameter: foo = 'spam spam spam'
@@ -153,7 +153,7 @@ def evaluate_params(paramsd, parent=None):
 
     """
     evaluated_paramsd = {}
-    for param, param_str in paramsd.iteritems():
+    for param, param_str in paramsd.items(): #iteritems -> items
         if param not in evaluated_paramsd:
             tmp = evaluate_param(param, paramsd, evaluated_paramsd, parent, [param])
             if tmp:
@@ -177,7 +177,7 @@ def evaluate_passed_params(paramsd, inst, evaluated_paramsd=None):
     if evaluated_paramsd is None:
         evaluated_paramsd = {}
 
-    for param, param_str in paramsd.iteritems():
+    for param, param_str in paramsd.items(): #iteritems -> items
         if param not in evaluated_paramsd:
             tmp = evaluate_expresion(param_str, inst.paramsd)
             if tmp:
@@ -299,6 +299,8 @@ def results2values(tokens, instance):
                     ret_str += '(' + str(instance.i(m.group('argument'))) + ')'
                 elif m.group('function') == 'isub':
                     ret_str += '(' + str(instance.isub(m.group('argument'))) + ')'
+                elif m.group('function') == 'p':
+                    ret_str += '(' + str(instance.p(m.group('argument'))) + ')'
                 else:
                     raise scs_errors.ScsInstanceError("Can't find function: %s" % token)
             elif reg_only_symbol.match(token):  # symbol token
@@ -555,10 +557,12 @@ def get_name_function_from_head(head):
                      'measure': add_analysis,
                      'ac': add_analysis,
                      'dc': add_analysis,
-                     'ends': change_to_parent_circuit}
+                      'end': change_to_parent_circuit} # Changed 'ends' to 'end'
     if head[0] == '.':
-        if name in function_dict:
-            funct = function_dict[name]
+        # Make lookup case-insensitive for control keywords like .param, .PARAM, .subckt, etc.
+        lower_name = name.lower() # name is head[1:]
+        if lower_name in function_dict:
+            funct = function_dict[lower_name]
         else:
             raise scs_errors.ScsParserError("Unknown control sentence: %s" % head)
     elif head[0] in \
@@ -627,10 +631,10 @@ def parse_file(filename, circuit):
         if circuit is current_cir:
             logging.error("No .end statement on the end of file!")
         return current_cir
-    except scs_errors.ScsParserError, e:
+    except scs_errors.ScsParserError as e:
         logging.error("Syntax error in file: %s on line: %d \n %s" % (filename, line_number, e))
         return None
-    except IOError, e:
+    except IOError as e:
         logging.error(e)
         return None
 
