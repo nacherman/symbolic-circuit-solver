@@ -20,12 +20,22 @@ class CircuitGUI(tk.Tk):
         self.currently_selected_canvas_item_gui_name = None
         self.last_selection_coords = None
 
-        # New state variables for wiring
         self.wiring_mode = False
         self.wire_start_coords = None
+        self.wire_pending_connection_start = None
         self.drawn_wires = []
         self.next_wire_id = 0
         self.temp_wire_start_indicator = None
+        self.next_auto_node_id = 1
+        self.currently_selected_wire_info = None
+
+
+        self.drag_data = {
+            'item_gui_name': None,
+            'press_mouse_x': 0, 'press_mouse_y': 0,
+            'current_drag_mouse_x': 0, 'current_drag_mouse_y': 0,
+            'original_item_x': 0, 'original_item_y': 0
+        }
 
         super().__init__()
         self.title("Symbolic Circuit Simulator GUI - Phase 1")
@@ -37,11 +47,12 @@ class CircuitGUI(tk.Tk):
         # --- Left Frame (Component Palette) ---
         self.palette_frame = ttk.LabelFrame(self.main_frame, text="Components", padding="10")
         self.palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-        ttk.Label(self.palette_frame, text="Select component:").pack(pady=5)
+        ttk.Label(self.palette_frame, text="Select tool:").pack(pady=5)
+        ttk.Button(self.palette_frame, text="Select", command=self._select_select_tool).pack(fill=tk.X, pady=2)
         ttk.Button(self.palette_frame, text="Resistor", command=lambda: self._select_component_for_placement("Resistor")).pack(fill=tk.X, pady=2)
         ttk.Button(self.palette_frame, text="V_Source_DC", command=lambda: self._select_component_for_placement("V_Source_DC")).pack(fill=tk.X, pady=2)
         ttk.Button(self.palette_frame, text="I_Source_DC", command=lambda: self._select_component_for_placement("I_Source_DC")).pack(fill=tk.X, pady=2)
-        ttk.Button(self.palette_frame, text="Wire", command=self._select_wire_tool).pack(fill=tk.X, pady=2) # New Wire button
+        ttk.Button(self.palette_frame, text="Wire", command=self._select_wire_tool).pack(fill=tk.X, pady=2)
 
         # --- Right Frame (Results/Formulas Display) ---
         self.results_frame = ttk.LabelFrame(self.main_frame, text="Formulas & Results", padding="10")
@@ -49,76 +60,63 @@ class CircuitGUI(tk.Tk):
         self.results_text = tk.Text(self.results_frame, wrap=tk.WORD, height=15, state=tk.DISABLED)
         self.results_text.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        # --- Center Frame (Canvas & Inputs & Properties) ---
-        self.center_frame = ttk.Frame(self.main_frame, padding="10")
-        self.center_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # --- Center Frame (Canvas & Properties) ---
+        self.center_frame_top = ttk.Frame(self.main_frame, padding="5")
+        self.center_frame_top.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        self.canvas_frame_container = ttk.LabelFrame(self.center_frame, text="Circuit Canvas", padding="10")
+        self.canvas_frame_container = ttk.LabelFrame(self.center_frame_top, text="Circuit Canvas", padding="10")
         self.canvas_frame_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=5, padx=(0,5))
         self.canvas = tk.Canvas(self.canvas_frame_container, bg="white", width=550, height=350)
         self.canvas.pack(fill=tk.BOTH, expand=True)
-        self.canvas.bind("<Button-1>", self._on_canvas_click)
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_button_press)
+        self.canvas.bind("<B1-Motion>", self._on_canvas_drag_motion)
+        self.canvas.bind("<ButtonRelease-1>", self._on_canvas_button_release)
 
-        self.properties_editor_frame = ttk.LabelFrame(self.center_frame, text="Properties Editor", padding="10")
+        self.properties_editor_frame = ttk.LabelFrame(self.center_frame_top, text="Properties Editor", padding="10")
         self.properties_editor_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5,0), pady=5)
         self.prop_selected_label = ttk.Label(self.properties_editor_frame, text="Selected: None")
         self.prop_selected_label.pack(pady=(0,5), anchor=tk.W)
         self.prop_type_label = ttk.Label(self.properties_editor_frame, text="Type: N/A")
         self.prop_type_label.pack(pady=(0,10), anchor=tk.W)
-        # ... (rest of properties editor widgets as defined previously) ...
-        prop_name_frame = ttk.Frame(self.properties_editor_frame)
-        prop_name_frame.pack(fill=tk.X, pady=2)
+        prop_name_frame = ttk.Frame(self.properties_editor_frame); prop_name_frame.pack(fill=tk.X, pady=2)
         ttk.Label(prop_name_frame, text="GUI Name:").pack(side=tk.LEFT)
-        self.prop_name_entry = ttk.Entry(prop_name_frame, width=15)
-        self.prop_name_entry.pack(side=tk.LEFT, padx=5, expand=True)
-        prop_value_frame = ttk.Frame(self.properties_editor_frame)
-        prop_value_frame.pack(fill=tk.X, pady=2)
+        self.prop_name_entry = ttk.Entry(prop_name_frame, width=15); self.prop_name_entry.pack(side=tk.LEFT, padx=5, expand=True)
+        prop_value_frame = ttk.Frame(self.properties_editor_frame); prop_value_frame.pack(fill=tk.X, pady=2)
         ttk.Label(prop_value_frame, text="Value/Sym:").pack(side=tk.LEFT)
-        self.prop_value_entry = ttk.Entry(prop_value_frame, width=15)
-        self.prop_value_entry.pack(side=tk.LEFT, padx=5, expand=True)
-        prop_n1_frame = ttk.Frame(self.properties_editor_frame)
-        prop_n1_frame.pack(fill=tk.X, pady=2)
+        self.prop_value_entry = ttk.Entry(prop_value_frame, width=15); self.prop_value_entry.pack(side=tk.LEFT, padx=5, expand=True)
+        prop_n1_frame = ttk.Frame(self.properties_editor_frame); prop_n1_frame.pack(fill=tk.X, pady=2)
         ttk.Label(prop_n1_frame, text="Node 1:").pack(side=tk.LEFT)
-        self.prop_n1_entry = ttk.Entry(prop_n1_frame, width=15)
-        self.prop_n1_entry.pack(side=tk.LEFT, padx=5, expand=True)
-        prop_n2_frame = ttk.Frame(self.properties_editor_frame)
-        prop_n2_frame.pack(fill=tk.X, pady=2)
+        self.prop_n1_entry = ttk.Entry(prop_n1_frame, width=15); self.prop_n1_entry.pack(side=tk.LEFT, padx=5, expand=True)
+        prop_n2_frame = ttk.Frame(self.properties_editor_frame); prop_n2_frame.pack(fill=tk.X, pady=2)
         ttk.Label(prop_n2_frame, text="Node 2:").pack(side=tk.LEFT)
-        self.prop_n2_entry = ttk.Entry(prop_n2_frame, width=15)
-        self.prop_n2_entry.pack(side=tk.LEFT, padx=5, expand=True)
+        self.prop_n2_entry = ttk.Entry(prop_n2_frame, width=15); self.prop_n2_entry.pack(side=tk.LEFT, padx=5, expand=True)
         self.update_props_button = ttk.Button(self.properties_editor_frame, text="Update Properties", command=self._update_component_properties, state=tk.DISABLED)
         self.update_props_button.pack(pady=10)
 
-        self.input_area_frame = ttk.LabelFrame(self.main_frame, text="Programmatic Circuit Definition & Analysis Targets", padding="10")
-        self.input_area_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5, expand=False)
+        self.input_area_main_frame = ttk.LabelFrame(self.main_frame, text="Programmatic Definition & Analysis Targets", padding="10")
+        self.input_area_main_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5, expand=False)
 
-        self.components_list_container_frame = ttk.Frame(self.input_area_frame)
+        self.components_list_container_frame = ttk.Frame(self.input_area_main_frame)
         self.components_list_container_frame.pack(fill=tk.X, expand=True, pady=(0,5))
         self.component_entries = []
 
-        self.action_buttons_frame = ttk.Frame(self.input_area_frame)
+        self.action_buttons_frame = ttk.Frame(self.input_area_main_frame)
         self.action_buttons_frame.pack(fill=tk.X, pady=5)
-        self.add_comp_button = ttk.Button(self.action_buttons_frame, text="Add Component", command=self._add_component_row)
-        self.add_comp_button.pack(side=tk.LEFT, padx=5)
-        self.remove_comp_button = ttk.Button(self.action_buttons_frame, text="Remove Last Component", command=self._remove_last_component_row)
-        self.remove_comp_button.pack(side=tk.LEFT, padx=5)
-        self.save_circuit_button = ttk.Button(self.action_buttons_frame, text="Save Circuit", command=self._save_circuit_to_file)
-        self.save_circuit_button.pack(side=tk.LEFT, padx=5)
-        self.load_circuit_button = ttk.Button(self.action_buttons_frame, text="Load Circuit", command=self._load_circuit_from_file)
-        self.load_circuit_button.pack(side=tk.LEFT, padx=5)
-        self.derive_button = ttk.Button(self.action_buttons_frame, text="Derive Formulas", command=self.on_derive_formulas)
-        self.derive_button.pack(side=tk.LEFT, padx=5)
-        self.calculate_button = ttk.Button(self.action_buttons_frame, text="Calculate Numerical Values", command=self.on_calculate_numerical)
-        self.calculate_button.pack(side=tk.LEFT, padx=5)
+        self.add_comp_button = ttk.Button(self.action_buttons_frame, text="Add Component", command=self._add_component_row); self.add_comp_button.pack(side=tk.LEFT, padx=5)
+        self.remove_comp_button = ttk.Button(self.action_buttons_frame, text="Remove Last Component", command=self._remove_last_component_row); self.remove_comp_button.pack(side=tk.LEFT, padx=5)
+        self.delete_button = ttk.Button(self.action_buttons_frame, text="Delete Selected", command=self._delete_selected, state=tk.DISABLED)
+        self.delete_button.pack(side=tk.LEFT, padx=5)
+        self.save_circuit_button = ttk.Button(self.action_buttons_frame, text="Save Circuit", command=self._save_circuit_to_file); self.save_circuit_button.pack(side=tk.LEFT, padx=5)
+        self.load_circuit_button = ttk.Button(self.action_buttons_frame, text="Load Circuit", command=self._load_circuit_from_file); self.load_circuit_button.pack(side=tk.LEFT, padx=5)
+        self.derive_button = ttk.Button(self.action_buttons_frame, text="Derive Formulas", command=self.on_derive_formulas); self.derive_button.pack(side=tk.LEFT, padx=5)
+        self.calculate_button = ttk.Button(self.action_buttons_frame, text="Calculate Numerical Values", command=self.on_calculate_numerical); self.calculate_button.pack(side=tk.LEFT, padx=5)
 
-        self.analysis_options_frame = ttk.LabelFrame(self.input_area_frame, text="Analysis & Calculation Targets", padding="10")
+        self.analysis_options_frame = ttk.LabelFrame(self.input_area_main_frame, text="Analysis & Calculation Targets", padding="10")
         self.analysis_options_frame.pack(fill=tk.X, pady=(10,0), side=tk.TOP)
         ttk.Label(self.analysis_options_frame, text="Target Comp. Name (GUI Name):").pack(side=tk.LEFT, padx=5)
-        self.target_comp_name_entry = ttk.Entry(self.analysis_options_frame, width=10)
-        self.target_comp_name_entry.pack(side=tk.LEFT, padx=5)
+        self.target_comp_name_entry = ttk.Entry(self.analysis_options_frame, width=10); self.target_comp_name_entry.pack(side=tk.LEFT, padx=5)
         ttk.Label(self.analysis_options_frame, text="Target Node (for V(node,'0')):") .pack(side=tk.LEFT, padx=5)
-        self.target_node_name_entry = ttk.Entry(self.analysis_options_frame, width=10)
-        self.target_node_name_entry.pack(side=tk.LEFT, padx=5)
+        self.target_node_name_entry = ttk.Entry(self.analysis_options_frame, width=10); self.target_node_name_entry.pack(side=tk.LEFT, padx=5)
 
         self._add_component_row(load_data={'type':"V_Source_DC", 'name':"S1", 'value':"US_sym", 'n1':"n1", 'n2':"0"})
         self._add_component_row(load_data={'type':"Resistor", 'name':"R1", 'value':"R1_sym", 'n1':"n1", 'n2':"n2"})
@@ -162,7 +160,7 @@ class CircuitGUI(tk.Tk):
                 if target_comp_gui_name:
                     comp_details = self._get_component_details_from_gui_name(target_comp_gui_name, circuit_data)
                     if comp_details:
-                        formulas_str += f"  --- For Comp (GUI: {target_comp_gui_name}, SPICE: {comp_details['spice_name']}) ---\n"
+                        formulas_str += f"  --- For Comp (GUI:{target_comp_gui_name}, SPICE:{comp_details['spice_name']}) ---\n"
                         try: formulas_str += f"    V({comp_details['n1']},{comp_details['n2']}): {sympy.pretty(self.top_instance.v(comp_details['n1'], comp_details['n2']))}\n"
                         except Exception as e: formulas_str += f"    Error V: {e}\n"
                         try: formulas_str += f"    I({comp_details['spice_name']}): {sympy.pretty(self.top_instance.i(comp_details['spice_name']))}\n"
@@ -248,21 +246,30 @@ class CircuitGUI(tk.Tk):
         return data
 
     def _generate_spice_netlist(self, circuit_data):
-        lines = ['* GUI Netlist']; params = []; sym_ensure = set()
+        lines = ['* Generated SPICE Netlist from GUI']; params = []; sym_ensure = set()
         def is_num(s): try: float(s); return True; except: return False
         for comp in circuit_data:
             val_param = comp['name'] + "_val"; val_str = comp['value']; sym_to_use = val_str
             if not val_str:
                 if comp['type']=="Resistor": sym_to_use=comp['name']+"_sym"
                 elif "Source" in comp['type']: sym_to_use=comp['name']+"_src_sym"
-                else: val_str="0" # Default unknown empty to 0
-                if val_str!="0": params.append(f".PARAM {val_param} = {sym_to_use}"); sym_ensure.add(f".PARAM {sym_to_use} = {sym_to_use}")
-                else: params.append(f".PARAM {val_param} = {val_str}")
+                else: self.display_message("Netlist Gen Error", f"Empty value for {comp['name']} type {comp['type']}. Defaulting to 0."); val_str = "0"; sym_to_use = "0"
+                if val_str == "0":
+                     params.append(f".PARAM {val_param} = 0")
+                else:
+                    params.append(f".PARAM {val_param} = {sym_to_use}")
+                    sym_ensure.add(f".PARAM {sym_to_use} = {sym_to_use}")
             elif not is_num(val_str): params.append(f".PARAM {val_param} = {sym_to_use}"); sym_ensure.add(f".PARAM {sym_to_use} = {sym_to_use}")
             else: params.append(f".PARAM {val_param} = {val_str}")
             prefix = {"Resistor":"R","V_Source_DC":"V","I_Source_DC":"I"}.get(comp['type'],"X")
             lines.append(f"{prefix}{comp['name']} {comp['n1']} {comp['n2']} {val_param}")
-        return "\n".join(lines[:1] + params + sorted(list(sym_ensure)) + lines[1:] + [".END"])
+        unique_symbol_ensure_lines = sorted(list(sym_ensure))
+        netlist_parts = [lines[0]]
+        if params: netlist_parts.extend(params)
+        if unique_symbol_ensure_lines: netlist_parts.extend(unique_symbol_ensure_lines)
+        netlist_parts.extend(lines[1:])
+        netlist_parts.append(".END")
+        return "\n".join(netlist_parts)
 
     def on_calculate_numerical(self):
         self.results_text.config(state=tk.NORMAL); self.results_text.delete('1.0', tk.END)
@@ -280,7 +287,7 @@ class CircuitGUI(tk.Tk):
         if subs: self.display_message("Numerical Calc",f"Substituting: {{ {', '.join([f'{str(k)}:{v}' for k,v in subs.items()])} }}")
 
         res_str="Numerical Results:\n"; comp_name=self.target_comp_name_entry.get().strip(); node_name=self.target_node_name_entry.get().strip()
-        if not comp_name and not node_name: res_str+="  No target. Enter GUI Comp. Name or Node Name.\n"
+        if not comp_name and not node_name: res_str+="  No target specified. Enter GUI Comp. Name or Node Name.\n"
         else:
             if comp_name:
                 details = self._get_component_details_from_gui_name(comp_name, circuit_data)
@@ -343,11 +350,12 @@ class CircuitGUI(tk.Tk):
         if self.temp_wire_start_indicator:
             self.canvas.delete(self.temp_wire_start_indicator)
             self.temp_wire_start_indicator = None
-        if comp_type:
-            self.display_message("Status", f"{comp_type} selected. Click on canvas.")
-            self._clear_selection_and_properties_editor()
-        else:
-            self.display_message("Status", "Placement mode off.")
+        if comp_type: # If a component type is selected (not None for a pointer tool)
+            self.display_message("Status", f"{comp_type} selected. Click on canvas to place.")
+        # When a component tool is selected, any active component or wire selection on canvas should be cleared.
+        self._clear_selection_and_properties_editor()
+        self._update_button_states()
+
 
     def _select_wire_tool(self):
         self.wiring_mode = True
@@ -357,23 +365,54 @@ class CircuitGUI(tk.Tk):
             self.canvas.delete(self.temp_wire_start_indicator)
             self.temp_wire_start_indicator = None
         self.wire_start_coords = None
+        self._update_button_states() # Delete button might disable if nothing was selected before
         self.display_message("Status", "Wire tool selected. Click start, then end point.")
 
-    def _on_canvas_click(self, event):
+    def _select_select_tool(self):
+        self.wiring_mode = False
+        self.selected_component_to_place = None
+        if self.temp_wire_start_indicator: # Clear any pending wire start
+            self.canvas.delete(self.temp_wire_start_indicator)
+            self.temp_wire_start_indicator = None
+        self.wire_start_coords = None
+        # self._clear_selection_and_properties_editor() # Do not clear here, user might want to select something
+        self._update_button_states()
+        self.display_message("Status", "Select tool active. Click on components or wires.")
+
+
+    def _on_canvas_button_press(self, event):
         if self.wiring_mode:
+            clicked_pin_info = self._find_pin_at_coords(event.x, event.y)
             if self.wire_start_coords is None:
-                self.wire_start_coords = (event.x, event.y)
+                if clicked_pin_info:
+                    self.wire_start_coords = clicked_pin_info['coords']
+                    self.wire_pending_connection_start = {'gui_name': clicked_pin_info['gui_name'], 'pin_index': clicked_pin_info['pin_index']}
+                    self.display_message("Wiring", f"Wire started from {clicked_pin_info['gui_name']} pin {clicked_pin_info['pin_index']}.")
+                else:
+                    self.wire_start_coords = (event.x, event.y)
+                    self.wire_pending_connection_start = None
+                    self.display_message("Wiring", f"Wire started at ({event.x},{event.y}).")
                 if self.temp_wire_start_indicator: self.canvas.delete(self.temp_wire_start_indicator)
-                self.temp_wire_start_indicator = self.canvas.create_oval(event.x-3, event.y-3, event.x+3, event.y+3, fill="red", outline="red")
-                self.display_message("Wiring", f"Wire started at ({event.x},{event.y}). Click end point.")
+                self.temp_wire_start_indicator = self.canvas.create_oval(self.wire_start_coords[0]-3, self.wire_start_coords[1]-3, self.wire_start_coords[0]+3, self.wire_start_coords[1]+3, fill="red", outline="red")
             else:
                 x1, y1 = self.wire_start_coords; x2, y2 = event.x, event.y
+                pending_end_info = None
+                if clicked_pin_info:
+                    x2, y2 = clicked_pin_info['coords']
+                    pending_end_info = {'gui_name': clicked_pin_info['gui_name'], 'pin_index': clicked_pin_info['pin_index']}
+                    self.display_message("Wiring", f"Wire end snapped to {clicked_pin_info['gui_name']} pin {clicked_pin_info['pin_index']}.")
                 wire_id_str = f"wire_{self.next_wire_id}"; self.next_wire_id += 1
                 line_canvas_id = self.canvas.create_line(x1, y1, x2, y2, fill="black", width=2, tags=("wire", wire_id_str))
-                self.drawn_wires.append({'id': wire_id_str, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'canvas_line_id': line_canvas_id})
-                self.display_message("Wiring", f"Wire {wire_id_str} drawn from ({x1},{y1}) to ({x2},{y2}).")
-                self.wire_start_coords = None
+                self.drawn_wires.append({'id': wire_id_str, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
+                                         'start_comp': self.wire_pending_connection_start,
+                                         'end_comp': pending_end_info,
+                                         'canvas_line_id': line_canvas_id})
+                self.display_message("Wiring", f"Wire {wire_id_str} drawn.")
+                if self.wire_pending_connection_start and pending_end_info : # Only update nodes if both ends snapped
+                    self._update_nodes_from_wire(self.wire_pending_connection_start, pending_end_info)
+                self.wire_start_coords = None; self.wire_pending_connection_start = None
                 if self.temp_wire_start_indicator: self.canvas.delete(self.temp_wire_start_indicator); self.temp_wire_start_indicator = None
+            self._update_button_states()
             return
 
         if self.selected_component_to_place:
@@ -387,27 +426,132 @@ class CircuitGUI(tk.Tk):
             self.placed_graphical_items.append({'id': gen_name, 'type': comp_type, 'x': x, 'y': y, 'canvas_item_ids': canvas_ids})
             self._add_component_row(load_data={'type': comp_type, 'name': gen_name, 'value': def_sym_val, 'n1': "?", 'n2': "?"})
             self.display_message("Canvas", f"Placed {comp_type} '{gen_name}'. Added to list.")
+            self._update_button_states()
+            return
+
+        # --- Selection Logic (if no other tool/mode is active) ---
+        # Start by clearing any previous component selection and its properties
+        self._clear_selection_and_properties_editor() # This also deselects wires and calls _update_button_states
+
+        clicked_item_gui_name = None
+        # Check for component click first
+        for item_info in reversed(self.placed_graphical_items):
+            ix, iy, radius = item_info['x'], item_info['y'], 25
+            if (ix - radius <= event.x <= ix + radius and iy - radius <= event.y <= iy + radius):
+                clicked_item_gui_name = item_info['id']
+                self.drag_data['item_gui_name'] = clicked_item_gui_name
+                self.drag_data['press_mouse_x'] = event.x; self.drag_data['press_mouse_y'] = event.y
+                self.drag_data['current_drag_mouse_x'] = event.x; self.drag_data['current_drag_mouse_y'] = event.y
+                self.drag_data['original_item_x'] = item_info['x']; self.drag_data['original_item_y'] = item_info['y']
+                break
+
+        if clicked_item_gui_name:
+            self.currently_selected_canvas_item_gui_name = clicked_item_gui_name
+            self.last_selection_coords = (event.x, event.y)
+            new_tag = f"comp_{clicked_item_gui_name}"
+            for cid in self.canvas.find_withtag(new_tag):
+                if self.canvas.type(cid) not in ["text","line"]: self.canvas.itemconfig(cid, outline="red", width=2)
+            self._populate_properties_editor(clicked_item_gui_name)
         else:
-            clicked_item_gui_name = None
-            for item_info in reversed(self.placed_graphical_items):
-                ix, iy, radius = item_info['x'], item_info['y'], 25
-                if (ix - radius <= event.x <= ix + radius and iy - radius <= event.y <= iy + radius):
-                    clicked_item_gui_name = item_info['id']; break
-            if clicked_item_gui_name:
-                if self.currently_selected_canvas_item_gui_name == clicked_item_gui_name and self.last_selection_coords == (event.x, event.y):
-                    self._clear_selection_and_properties_editor()
-                else:
-                    if self.currently_selected_canvas_item_gui_name and self.currently_selected_canvas_item_gui_name != clicked_item_gui_name:
-                        old_tag = f"comp_{self.currently_selected_canvas_item_gui_name}"
-                        for cid in self.canvas.find_withtag(old_tag):
-                            if self.canvas.type(cid) not in ["text","line"]: self.canvas.itemconfig(cid, outline="black", width=1)
-                    self.currently_selected_canvas_item_gui_name = clicked_item_gui_name
-                    self.last_selection_coords = (event.x, event.y)
-                    new_tag = f"comp_{clicked_item_gui_name}"
-                    for cid in self.canvas.find_withtag(new_tag):
-                        if self.canvas.type(cid) not in ["text","line"]: self.canvas.itemconfig(cid, outline="red", width=2)
-                    self._populate_properties_editor(clicked_item_gui_name)
-            else: self._clear_selection_and_properties_editor()
+            # If no component was clicked, check for wire click
+            clicked_wire_info = None
+            for wire_info_iter in reversed(self.drawn_wires): # Check drawn wires
+                x1, y1, x2, y2 = wire_info_iter['x1'], wire_info_iter['y1'], wire_info_iter['x2'], wire_info_iter['y2']
+                # Basic bounding box check for the wire
+                tolerance = 5 # Click tolerance for wire
+                min_x, max_x = min(x1, x2) - tolerance, max(x1, x2) + tolerance
+                min_y, max_y = min(y1, y2) - tolerance, max(y1, y2) + tolerance
+                if min_x <= event.x <= max_x and min_y <= event.y <= max_y:
+                    # More precise check: distance from point to line segment (simplified here)
+                    # This basic bbox is often enough for sparse wires.
+                    # A proper solution would involve checking distance to line segment.
+                    # For now, if bbox hits, consider it a hit.
+                    clicked_wire_info = wire_info_iter
+                    break
+
+            if clicked_wire_info:
+                self.currently_selected_wire_info = clicked_wire_info
+                self.canvas.itemconfig(clicked_wire_info['canvas_line_id'], fill='blue', width=3) # Highlight wire
+                self.prop_selected_label.config(text=f"Selected: {clicked_wire_info['id']}")
+                self.prop_type_label.config(text="Type: Wire")
+                # Ensure component property fields are disabled
+                for widget in [self.prop_name_entry, self.prop_value_entry, self.prop_n1_entry, self.prop_n2_entry]:
+                    widget.config(state=tk.DISABLED)
+                self.update_props_button.config(state=tk.DISABLED) # Cannot update wire props yet
+
+        self._update_button_states()
+
+
+    def _on_canvas_drag_motion(self, event):
+        if self.drag_data.get('item_gui_name'):
+            item_gui_name = self.drag_data['item_gui_name']
+            dx = event.x - self.drag_data['current_drag_mouse_x']
+            dy = event.y - self.drag_data['current_drag_mouse_y']
+            self.canvas.move(f"comp_{item_gui_name}", dx, dy)
+            self.drag_data['current_drag_mouse_x'] = event.x
+            self.drag_data['current_drag_mouse_y'] = event.y
+            moved_comp_gui_name = item_gui_name
+            current_visual_center_x = self.drag_data['original_item_x'] + (event.x - self.drag_data['press_mouse_x'])
+            current_visual_center_y = self.drag_data['original_item_y'] + (event.y - self.drag_data['press_mouse_y'])
+            new_pin_coords_list = self._get_component_pin_coords(moved_comp_gui_name, override_x=current_visual_center_x, override_y=current_visual_center_y)
+            if not new_pin_coords_list: return
+            for wire_info in self.drawn_wires:
+                needs_visual_update = False
+                temp_new_wire_canvas_coords = list(self.canvas.coords(wire_info['canvas_line_id']))
+                if wire_info.get('start_comp') and wire_info['start_comp']['gui_name'] == moved_comp_gui_name:
+                    target_pin_index = wire_info['start_comp']['pin_index']
+                    for pin_x, pin_y, p_idx in new_pin_coords_list:
+                        if p_idx == target_pin_index:
+                            temp_new_wire_canvas_coords[0], temp_new_wire_canvas_coords[1] = pin_x, pin_y
+                            needs_visual_update = True; break
+                if wire_info.get('end_comp') and wire_info['end_comp']['gui_name'] == moved_comp_gui_name:
+                    target_pin_index = wire_info['end_comp']['pin_index']
+                    for pin_x, pin_y, p_idx in new_pin_coords_list:
+                        if p_idx == target_pin_index:
+                            temp_new_wire_canvas_coords[2], temp_new_wire_canvas_coords[3] = pin_x, pin_y
+                            needs_visual_update = True; break
+                if needs_visual_update:
+                    self.canvas.coords(wire_info['canvas_line_id'],
+                                       temp_new_wire_canvas_coords[0], temp_new_wire_canvas_coords[1],
+                                       temp_new_wire_canvas_coords[2], temp_new_wire_canvas_coords[3])
+
+    def _on_canvas_button_release(self, event):
+        moved_comp_gui_name_final = self.drag_data.get('item_gui_name')
+        if moved_comp_gui_name_final:
+            final_x = self.drag_data['original_item_x'] + (event.x - self.drag_data['press_mouse_x'])
+            final_y = self.drag_data['original_item_y'] + (event.y - self.drag_data['press_mouse_y'])
+            for item_info in self.placed_graphical_items:
+                if item_info['id'] == moved_comp_gui_name_final:
+                    item_info['x'] = final_x; item_info['y'] = final_y; break
+            self.display_message("Canvas", f"Moved {moved_comp_gui_name_final} to ({final_x}, {final_y}).")
+            if self.currently_selected_canvas_item_gui_name == moved_comp_gui_name_final:
+                 self._populate_properties_editor(moved_comp_gui_name_final)
+            final_pin_coords_list = self._get_component_pin_coords(moved_comp_gui_name_final)
+            if final_pin_coords_list:
+                for wire_info in self.drawn_wires:
+                    needs_final_update = False
+                    final_wire_canvas_coords = list(self.canvas.coords(wire_info['canvas_line_id']))
+                    if wire_info.get('start_comp') and wire_info['start_comp']['gui_name'] == moved_comp_gui_name_final:
+                        target_pin_index = wire_info['start_comp']['pin_index']
+                        for pin_x_f, pin_y_f, p_idx_f in final_pin_coords_list:
+                            if p_idx_f == target_pin_index:
+                                wire_info['x1'], wire_info['y1'] = pin_x_f, pin_y_f
+                                final_wire_canvas_coords[0], final_wire_canvas_coords[1] = pin_x_f, pin_y_f
+                                needs_final_update = True; break
+                    if wire_info.get('end_comp') and wire_info['end_comp']['gui_name'] == moved_comp_gui_name_final:
+                        target_pin_index = wire_info['end_comp']['pin_index']
+                        for pin_x_f, pin_y_f, p_idx_f in final_pin_coords_list:
+                            if p_idx_f == target_pin_index:
+                                wire_info['x2'], wire_info['y2'] = pin_x_f, pin_y_f
+                                final_wire_canvas_coords[2], final_wire_canvas_coords[3] = pin_x_f, pin_y_f
+                                needs_final_update = True; break
+                    if needs_final_update:
+                        self.canvas.coords(wire_info['canvas_line_id'],
+                                           final_wire_canvas_coords[0], final_wire_canvas_coords[1],
+                                           final_wire_canvas_coords[2], final_wire_canvas_coords[3])
+        self.drag_data = {'item_gui_name': None, 'press_mouse_x': 0, 'press_mouse_y': 0,
+                          'current_drag_mouse_x':0, 'current_drag_mouse_y':0,
+                          'original_item_x':0, 'original_item_y':0}
 
     def _draw_component_symbol(self, x, y, comp_type, gui_name):
         tag = f"comp_{gui_name}"; canvas_ids = []; size = 20
@@ -415,37 +559,49 @@ class CircuitGUI(tk.Tk):
             canvas_ids.append(self.canvas.create_rectangle(x-size*1.5,y-size*0.5,x+size*1.5,y+size*0.5,outline="black",fill="lightblue",tags=(tag,)))
         elif comp_type == "V_Source_DC":
             canvas_ids.append(self.canvas.create_oval(x-size,y-size,x+size,y+size,outline="black",fill="lightgreen",tags=(tag,)))
-            canvas_ids.append(self.canvas.create_line(x,y-size*0.6,x,y-size*0.2,tags=(tag,))); canvas_ids.append(self.canvas.create_line(x-size*0.2,y-size*0.4,x+size*0.2,y-size*0.4,tags=(tag,))) # Plus
-            canvas_ids.append(self.canvas.create_line(x-size*0.2,y+size*0.4,x+size*0.2,y+size*0.4,width=2,tags=(tag,))) # Minus
+            canvas_ids.append(self.canvas.create_line(x,y-size*0.6,x,y-size*0.2,tags=(tag,))); canvas_ids.append(self.canvas.create_line(x-size*0.2,y-size*0.4,x+size*0.2,y-size*0.4,tags=(tag,)))
+            canvas_ids.append(self.canvas.create_line(x-size*0.2,y+size*0.4,x+size*0.2,y+size*0.4,width=2,tags=(tag,)))
         elif comp_type == "I_Source_DC":
             canvas_ids.append(self.canvas.create_oval(x-size,y-size,x+size,y+size,outline="black",fill="lightpink",tags=(tag,)))
-            canvas_ids.append(self.canvas.create_line(x,y+size*0.6,x,y-size*0.6,tags=(tag,))); canvas_ids.append(self.canvas.create_line(x,y-size*0.6,x-size*0.2,y-size*0.3,x+size*0.2,y-size*0.3,x,y-size*0.6,smooth=True,tags=(tag,))) # Arrow
+            canvas_ids.append(self.canvas.create_line(x,y+size*0.6,x,y-size*0.6,tags=(tag,))); canvas_ids.append(self.canvas.create_line(x,y-size*0.6,x-size*0.2,y-size*0.3,x+size*0.2,y-size*0.3,x,y-size*0.6,smooth=True,tags=(tag,)))
         else: canvas_ids.append(self.canvas.create_text(x,y,text=f"{comp_type[:3]}?",tags=(tag,)))
         canvas_ids.append(self.canvas.create_text(x,y-size-7,text=gui_name,font=("Arial",8),tags=(tag,)))
         return canvas_ids
 
     def _populate_properties_editor(self, gui_name):
+        self._clear_selection_and_properties_editor() # Clear previous wire selection first
         found_entry_dict = None
         for entry_widgets_dict in self.component_entries:
             if entry_widgets_dict['name'].get() == gui_name: found_entry_dict = entry_widgets_dict; break
         if found_entry_dict:
+            self.currently_selected_canvas_item_gui_name = gui_name # Set it here
             self.prop_selected_label.config(text=f"Selected: {gui_name}")
             self.prop_type_label.config(text=f"Type: {found_entry_dict['type'].get()}")
             for prop, widget in {'name':self.prop_name_entry, 'value':self.prop_value_entry, 'n1':self.prop_n1_entry, 'n2':self.prop_n2_entry}.items():
                 widget.config(state=tk.NORMAL); widget.delete(0,tk.END); widget.insert(0, found_entry_dict[prop].get())
-            self.update_props_button.config(state=tk.NORMAL)
-        else: self._clear_selection_and_properties_editor()
+            # Highlight selected component
+            new_tag = f"comp_{gui_name}"
+            for cid in self.canvas.find_withtag(new_tag):
+                if self.canvas.type(cid) not in ["text","line"]: self.canvas.itemconfig(cid, outline="red", width=2)
+        else: self._clear_selection_and_properties_editor() # Fallback
+        self._update_button_states()
+
 
     def _clear_selection_and_properties_editor(self):
         if self.currently_selected_canvas_item_gui_name:
             old_tag = f"comp_{self.currently_selected_canvas_item_gui_name}"
             for cid in self.canvas.find_withtag(old_tag):
                 if self.canvas.type(cid) not in ["text","line"]: self.canvas.itemconfig(cid, outline="black",width=1)
+        if self.currently_selected_wire_info:
+            try: self.canvas.itemconfig(self.currently_selected_wire_info['canvas_line_id'], fill='black', width=2)
+            except tk.TclError: pass
+            self.currently_selected_wire_info = None
+
         self.currently_selected_canvas_item_gui_name = None; self.last_selection_coords = None
         self.prop_selected_label.config(text="Selected: None"); self.prop_type_label.config(text="Type: N/A")
         for widget in [self.prop_name_entry,self.prop_value_entry,self.prop_n1_entry,self.prop_n2_entry]:
             widget.delete(0,tk.END); widget.config(state=tk.DISABLED)
-        self.update_props_button.config(state=tk.DISABLED)
+        # self._update_button_states() # Called by context that calls this
 
     def _update_component_properties(self):
         if not self.currently_selected_canvas_item_gui_name: return
@@ -473,7 +629,7 @@ class CircuitGUI(tk.Tk):
 
         if canvas_item_info_to_update_idx != -1:
             item_info = self.placed_graphical_items[canvas_item_info_to_update_idx]
-            item_info['id'] = new_gui_name # Critical: update ID in placed_graphical_items
+            item_info['id'] = new_gui_name
             if old_gui_name != new_gui_name:
                 old_tag = f"comp_{old_gui_name}"; new_tag = f"comp_{new_gui_name}"
                 label_updated_on_canvas = False
@@ -483,24 +639,112 @@ class CircuitGUI(tk.Tk):
                     except ValueError: pass
                     current_tags.append(new_tag)
                     self.canvas.itemconfig(c_id, tags=tuple(current_tags))
-                    # Update text of the label item
-                    # This assumes label is the last item and is of type 'text'
                     if c_id == item_info['canvas_item_ids'][-1] and self.canvas.type(c_id) == "text":
                        self.canvas.itemconfig(c_id, text=new_gui_name)
                        label_updated_on_canvas = True
-                if not label_updated_on_canvas: # Fallback if assumption failed (e.g. label not last)
-                    for c_id in self.canvas.find_withtag(new_tag): # Search by new tag
-                         if self.canvas.type(c_id) == "text":
-                             # Check if this text item belongs to the component (e.g. by coords or more specific tag)
-                             # For now, this might re-label other text items if not careful.
-                             # A more robust way is to have a specific, unique tag for the label text item itself.
-                             # Example: self.canvas.itemconfig(the_actual_label_id_stored_separately, text=new_gui_name)
-                             # For now, we assume the last item is the label.
-                             pass # The above heuristic is kept.
-
+                if not label_updated_on_canvas:
+                    for c_id in self.canvas.find_withtag(new_tag):
+                         if self.canvas.type(c_id) == "text": self.canvas.itemconfig(c_id, text=new_gui_name); break
         self.currently_selected_canvas_item_gui_name = new_gui_name
         self.prop_selected_label.config(text=f"Selected: {new_gui_name}")
         self.display_message("Properties", f"Properties for '{old_gui_name}' updated to '{new_gui_name}'.")
+        self._update_button_states()
+
+
+    def _update_button_states(self):
+        has_component_selection = bool(self.currently_selected_canvas_item_gui_name)
+        has_wire_selection = bool(self.currently_selected_wire_info)
+
+        if has_component_selection or has_wire_selection:
+            self.delete_button.config(state=tk.NORMAL)
+        else:
+            self.delete_button.config(state=tk.DISABLED)
+
+        if has_component_selection:
+            self.update_props_button.config(state=tk.NORMAL)
+            # Also enable property entry fields if a component is selected
+            for widget in [self.prop_name_entry, self.prop_value_entry, self.prop_n1_entry, self.prop_n2_entry]:
+                widget.config(state=tk.NORMAL)
+        else: # No component selected (could be a wire, or nothing)
+            self.update_props_button.config(state=tk.DISABLED)
+            # Disable property entry fields if no component is selected
+            for widget in [self.prop_name_entry, self.prop_value_entry, self.prop_n1_entry, self.prop_n2_entry]:
+                widget.config(state=tk.DISABLED)
+
+
+    def _delete_selected(self):
+        if self.currently_selected_canvas_item_gui_name:
+            gui_name = self.currently_selected_canvas_item_gui_name
+            self.canvas.delete(f"comp_{gui_name}")
+            self.placed_graphical_items = [item for item in self.placed_graphical_items if item['id'] != gui_name]
+
+            idx_to_remove = -1
+            for i, entry_dict in enumerate(self.component_entries):
+                if entry_dict['name'].get() == gui_name:
+                    entry_dict['frame'].destroy()
+                    idx_to_remove = i; break
+            if idx_to_remove != -1: del self.component_entries[idx_to_remove]
+
+            wires_to_remove = []
+            for wire_info in self.drawn_wires:
+                is_connected_to_deleted = False
+                if wire_info.get('start_comp') and wire_info['start_comp']['gui_name'] == gui_name: is_connected_to_deleted = True
+                if wire_info.get('end_comp') and wire_info['end_comp']['gui_name'] == gui_name: is_connected_to_deleted = True
+                if is_connected_to_deleted:
+                    self.canvas.delete(wire_info['canvas_line_id'])
+                    wires_to_remove.append(wire_info)
+            for wire in wires_to_remove: self.drawn_wires.remove(wire)
+
+            self.display_message("Delete", f"Component '{gui_name}' and connected wires deleted.")
+            self._clear_selection_and_properties_editor()
+
+        elif self.currently_selected_wire_info:
+            wire_id_str = self.currently_selected_wire_info['id']
+            self.canvas.delete(self.currently_selected_wire_info['canvas_line_id'])
+            self.drawn_wires = [wire for wire in self.drawn_wires if wire['id'] != wire_id_str]
+            self.display_message("Delete", f"Wire '{wire_id_str}' deleted.")
+            self._clear_selection_and_properties_editor()
+
+        self._update_button_states()
+
+
+    def _get_node_for_pin(self, gui_name, pin_index):
+        for entry_widgets in self.component_entries:
+            if entry_widgets['name'].get() == gui_name:
+                return entry_widgets['n1'].get() if pin_index == 0 else entry_widgets['n2'].get()
+        return "?"
+
+    def _set_node_for_pin(self, gui_name, pin_index, node_name):
+        for entry_widgets in self.component_entries:
+            if entry_widgets['name'].get() == gui_name:
+                target_entry = entry_widgets['n1'] if pin_index == 0 else entry_widgets['n2']
+                target_entry.delete(0, tk.END); target_entry.insert(0, node_name)
+                if self.currently_selected_canvas_item_gui_name == gui_name:
+                    self._populate_properties_editor(gui_name)
+                return
+        self.display_message("Error", f"Could not set node for component {gui_name} (not found).")
+
+    def _update_nodes_from_wire(self, start_comp_info, end_comp_info):
+        if not (start_comp_info and end_comp_info):
+            self.display_message("Wiring", "Wire end not snapped. Node names not updated.")
+            return
+
+        node_start_val = self._get_node_for_pin(start_comp_info['gui_name'], start_comp_info['pin_index'])
+        node_end_val = self._get_node_for_pin(end_comp_info['gui_name'], end_comp_info['pin_index'])
+        is_node_start_valid = node_start_val not in ["", "?"]
+        is_node_end_valid = node_end_val not in ["", "?"]
+        final_node_name = ""
+
+        if is_node_start_valid and is_node_end_valid:
+            if node_start_val == node_end_val: final_node_name = node_start_val
+            else: final_node_name = node_start_val; self.display_message("Wiring Warning", f"Connecting '{node_start_val}' and '{node_end_val}'. Merged to '{final_node_name}'.")
+        elif is_node_start_valid: final_node_name = node_start_val
+        elif is_node_end_valid: final_node_name = node_end_val
+        else: final_node_name = f"node_auto_{self.next_auto_node_id}"; self.next_auto_node_id += 1
+
+        self._set_node_for_pin(start_comp_info['gui_name'], start_comp_info['pin_index'], final_node_name)
+        self._set_node_for_pin(end_comp_info['gui_name'], end_comp_info['pin_index'], final_node_name)
+        self.display_message("Wiring", f"Connected {start_comp_info['gui_name']}[pin{start_comp_info['pin_index']}] and {end_comp_info['gui_name']}[pin{end_comp_info['pin_index']}] to node '{final_node_name}'.")
 
 if __name__ == '__main__':
     app = CircuitGUI()
