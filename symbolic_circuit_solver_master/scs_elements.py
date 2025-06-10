@@ -54,15 +54,26 @@ class VoltageSource(Element):
             print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
             return substituted_expr
 
-class VoltageControlledVoltageSource(VoltageSource):
+class VoltageControlledVoltageSource(VoltageSource): # Inherits get_numerical_dc_value from VoltageSource
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
-        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
-        if evaluate_param_func is None:
+        # VCVS specific net extraction: n+, n-, nc+, nc-
+        # element.paramsl for VCVS: [n_plus, n_minus, n_control_plus, n_control_minus, gain_expr]
+        actual_nets = element.paramsl[:-1]
+        if len(actual_nets) != 4:
+            raise scs_errors.ScsElementError("Net list is incorrect for VoltageControlledVoltageSource. Expected 4 control/output nets.")
+
+        # Call Element.__init__ directly.
+        # self.names = [name] (standard for single element)
+        # self.nets = [n+, n-, nc+, nc-] for stamping
+        Element.__init__(self, [name], actual_nets, [], evaluate_param_func=evaluate_param_func)
+
+        if evaluate_param_func is None: # This check is somewhat redundant if Element.__init__ stores it.
             raise ValueError("evaluate_param_func must be provided to VCVS constructor")
+
         gain_expresion = element.paramsl[-1]
         gain_value = evaluate_param_func('_gain', {'_gain': gain_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(gain_value, sympy.abc._clash)]
-    # get_numerical_dc_value is inherited
+    # get_numerical_dc_value is inherited from VoltageSource
 
 class CurrentControlledVoltageSource(VoltageSource):
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
@@ -110,15 +121,26 @@ class CurrentSource(Element):
             print(f"Warning: Could not convert DC value of {self.names[0]} ('{expr}') to float. Error: {e}. Returning substituted expression: {substituted_expr}")
             return substituted_expr
 
-class VoltageControlledCurrentSource(CurrentSource):
+class VoltageControlledCurrentSource(CurrentSource): # Inherits get_numerical_dc_value from CurrentSource
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
-        super().__init__(name, element, evaluated_paramsd, parent, evaluate_param_func=evaluate_param_func)
+        # VCCS specific net extraction: n+, n-, nc+, nc-
+        # element.paramsl for VCCS: [n_plus, n_minus, n_control_plus, n_control_minus, transconductance_expr]
+        actual_nets = element.paramsl[:-1]
+        if len(actual_nets) != 4:
+            raise scs_errors.ScsElementError("Net list is incorrect for VoltageControlledCurrentSource. Expected 4 control/output nets.")
+
+        # Call Element.__init__ directly.
+        # self.names = [name]
+        # self.nets should contain all 4 nets for MNA stamping access: n+, n-, nc+, nc-
+        Element.__init__(self, [name], actual_nets, [], evaluate_param_func=evaluate_param_func)
+
         if evaluate_param_func is None:
             raise ValueError("evaluate_param_func must be provided to VCCS constructor")
+
         gm_expresion = element.paramsl[-1]
         gm_value = evaluate_param_func('_gm', {'_gm': gm_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(gm_value, sympy.abc._clash)]
-    # get_numerical_dc_value is inherited
+    # get_numerical_dc_value is inherited from CurrentSource
 
 class CurrentControlledCurrentSource(CurrentSource):
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):

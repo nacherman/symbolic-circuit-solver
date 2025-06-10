@@ -62,7 +62,8 @@ suffixd = {'meg': 1e6, 'Meg': 1e6, 'MEg': 1e6, 'MEG': 1e6,
            'a': 1e-18, 'A': 1e-18, 'f': 1e-15, 'F': 1e-15,
            'p': 1e-12, 'P': 1e-12, 'n': 1e-9, 'N': 1e-9,
            'u': 1e-6, 'U': 1e-6, 'm': 1e-3, 'M': 1e-3,
-           'k': 1e6, 'K': 1e3, 'x': 1e6, 'X': 1e6,
+           'k': 1e3, 'K': 1e3, # Corrected 'k' from 1e6 to 1e3
+           'x': 1e6, 'X': 1e6, # Note: 'x' and 'X' are often not standard SPICE, but present here. Assuming Mega.
            'g': 1e9, 'G': 1e9, 't': 1e12, 'T': 1e12}
 
 
