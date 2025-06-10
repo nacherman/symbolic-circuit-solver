@@ -22,8 +22,8 @@ __version__ = "0.0.1"
 __email__ = "kniola.tomasz@gmail.com"
 __status__ = "development"
 
-# Matches line with comment at the end like: foo $ bar
-reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>\$.*$)')
+# Matches line with comment at the end like: foo $ bar OR foo ; bar
+reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>[\$;].*$)')
 # Matches whole line with parameter definition at the end like: foo bar = 'spam spam spam'
 reg_param_with_rest = re.compile('(?P<rest>.*)(?P<param>(\s.+?=\s*?\'.*?\'$)|(\s.+?=\s*?\".*?\"$))')
 # Matches just the parameter: foo = 'spam spam spam'
