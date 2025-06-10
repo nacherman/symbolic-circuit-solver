@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox # Added messagebox for potential future use, not strictly for this step
+from tkinter import ttk, messagebox, filedialog # Added messagebox for potential future use, not strictly for this step
 import os
 import tempfile
 import sympy # For sympy.pretty and potentially creating symbols if needed by solver directly
+import json # For Save/Load functionality
 
 # Imports for the symbolic circuit solver engine
 # Assuming circuit_gui.py is within the symbolic_circuit_solver_master package
@@ -16,7 +17,9 @@ class CircuitGUI(tk.Tk):
     def __init__(self):
         self.top_instance = None # To store the solved circuit instance
         self.active_symbols_info = {} # Stores info about GUI components whose values were defined as symbols
-                                      # Structure: { 'gui_comp_name1': {'symbol': sympy.Symbol('Sym1'), 'spice_name': 'RSym1', 'n1':'N1', 'n2':'N0'}, ... }
+        self.selected_component_to_place = None
+        self.placed_graphical_items = []
+        self.next_graphical_item_id = 0
         super().__init__()
         self.title("Symbolic Circuit Simulator GUI - Phase 1")
         self.geometry("1000x700") # Initial size
@@ -25,13 +28,14 @@ class CircuitGUI(tk.Tk):
         self.main_frame = ttk.Frame(self, padding="10")
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # --- Left Frame (Component Palette - Placeholder) ---
+        # --- Left Frame (Component Palette) ---
         self.palette_frame = ttk.LabelFrame(self.main_frame, text="Components", padding="10")
         self.palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-        ttk.Label(self.palette_frame, text="(Placeholder for component buttons)").pack(pady=5)
-        # Example component buttons (non-functional for now)
-        ttk.Button(self.palette_frame, text="Resistor").pack(fill=tk.X, pady=2)
-        ttk.Button(self.palette_frame, text="V_Source").pack(fill=tk.X, pady=2)
+        ttk.Label(self.palette_frame, text="Select component:").pack(pady=5)
+        ttk.Button(self.palette_frame, text="Resistor", command=lambda: self._select_component_for_placement("Resistor")).pack(fill=tk.X, pady=2)
+        ttk.Button(self.palette_frame, text="V_Source_DC", command=lambda: self._select_component_for_placement("V_Source_DC")).pack(fill=tk.X, pady=2)
+        ttk.Button(self.palette_frame, text="I_Source_DC", command=lambda: self._select_component_for_placement("I_Source_DC")).pack(fill=tk.X, pady=2)
+        # ttk.Button(self.palette_frame, text="Pointer", command=lambda: self._select_component_for_placement(None)).pack(fill=tk.X, pady=5) # For deselecting
 
         # --- Right Frame (Results/Formulas Display) ---
         self.results_frame = ttk.LabelFrame(self.main_frame, text="Formulas & Results", padding="10")
@@ -49,68 +53,65 @@ class CircuitGUI(tk.Tk):
         self.center_frame = ttk.Frame(self.main_frame, padding="10")
         self.center_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Canvas Placeholder
-        self.canvas_placeholder_frame = ttk.LabelFrame(self.center_frame, text="Circuit Canvas", padding="10")
-        self.canvas_placeholder_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
-        ttk.Label(self.canvas_placeholder_frame, text="(Placeholder for graphical circuit drawing - Future)").pack(expand=True)
+        # Canvas for drawing circuit
+        self.canvas_frame_container = ttk.LabelFrame(self.center_frame, text="Circuit Canvas", padding="10")
+        self.canvas_frame_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
 
-        # Programmatic Input Area - Refined
+        self.canvas = tk.Canvas(self.canvas_frame_container, bg="white", width=600, height=400)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.bind("<Button-1>", self._on_canvas_click)
+
+        # Programmatic Input Area for dynamic components
         self.input_area_frame = ttk.LabelFrame(self.center_frame, text="Programmatic Circuit Definition", padding="10")
         self.input_area_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
 
-        self.component_entries = []
-        component_types = ["", "Resistor", "V_Source_DC", "I_Source_DC"]
-        num_component_rows = 6
+        # Container for the dynamic list of component rows
+        self.components_list_container_frame = ttk.Frame(self.input_area_frame)
+        self.components_list_container_frame.pack(fill=tk.X, expand=True)
 
-        for i in range(num_component_rows):
-            row_frame = ttk.Frame(self.input_area_frame)
-            row_frame.pack(fill=tk.X, pady=2)
+        self.component_entries = [] # List to hold dicts of widgets for each component row
 
-            ttk.Label(row_frame, text=f"Comp {i+1}: Type=").pack(side=tk.LEFT, padx=(0,2))
-            type_combo = ttk.Combobox(row_frame, values=component_types, width=12, state="readonly")
-            type_combo.pack(side=tk.LEFT, padx=2)
-            type_combo.current(0) # Default to empty
-
-            ttk.Label(row_frame, text="Name=").pack(side=tk.LEFT, padx=(5,2))
-            name_entry = ttk.Entry(row_frame, width=8)
-            name_entry.pack(side=tk.LEFT, padx=2)
-
-            ttk.Label(row_frame, text="Value/Symbol=").pack(side=tk.LEFT, padx=(5,2))
-            value_entry = ttk.Entry(row_frame, width=10)
-            value_entry.pack(side=tk.LEFT, padx=2)
-
-            ttk.Label(row_frame, text="N1=").pack(side=tk.LEFT, padx=(5,2))
-            n1_entry = ttk.Entry(row_frame, width=5)
-            n1_entry.pack(side=tk.LEFT, padx=2)
-
-            ttk.Label(row_frame, text="N2=").pack(side=tk.LEFT, padx=(5,2))
-            n2_entry = ttk.Entry(row_frame, width=5)
-            n2_entry.pack(side=tk.LEFT, padx=2)
-
-            # For controlled sources, N3 and N4 might be needed. Add placeholders if time allows, or for future.
-            # ttk.Label(row_frame, text="N3=").pack(side=tk.LEFT, padx=(5,2))
-            # n3_entry = ttk.Entry(row_frame, width=5)
-            # n3_entry.pack(side=tk.LEFT, padx=2)
-            # ttk.Label(row_frame, text="N4=").pack(side=tk.LEFT, padx=(5,2))
-            # n4_entry = ttk.Entry(row_frame, width=5)
-            # n4_entry.pack(side=tk.LEFT, padx=2)
-
-
-            row_widgets = {
-                'type': type_combo, 'name': name_entry, 'value': value_entry,
-                'n1': n1_entry, 'n2': n2_entry #, 'n3': n3_entry, 'n4': n4_entry
-            }
-            self.component_entries.append(row_widgets)
-
-        # Action Buttons
+        # Action Buttons - now includes Add/Remove
         self.action_buttons_frame = ttk.Frame(self.input_area_frame)
         self.action_buttons_frame.pack(fill=tk.X, pady=10)
+
+        self.add_comp_button = ttk.Button(self.action_buttons_frame, text="Add Component", command=self._add_component_row)
+        self.add_comp_button.pack(side=tk.LEFT, padx=5)
+
+        self.remove_comp_button = ttk.Button(self.action_buttons_frame, text="Remove Last Component", command=self._remove_last_component_row)
+        self.remove_comp_button.pack(side=tk.LEFT, padx=5)
+
+        self.save_circuit_button = ttk.Button(self.action_buttons_frame, text="Save Circuit", command=self._save_circuit_to_file)
+        self.save_circuit_button.pack(side=tk.LEFT, padx=5)
+
+        self.load_circuit_button = ttk.Button(self.action_buttons_frame, text="Load Circuit", command=self._load_circuit_from_file)
+        self.load_circuit_button.pack(side=tk.LEFT, padx=5)
 
         self.derive_button = ttk.Button(self.action_buttons_frame, text="Derive Formulas", command=self.on_derive_formulas)
         self.derive_button.pack(side=tk.LEFT, padx=5)
 
         self.calculate_button = ttk.Button(self.action_buttons_frame, text="Calculate Numerical Values", command=self.on_calculate_numerical)
         self.calculate_button.pack(side=tk.LEFT, padx=5)
+
+        # --- Analysis Options Frame ---
+        self.analysis_options_frame = ttk.LabelFrame(self.input_area_frame, text="Analysis & Calculation Targets", padding="10")
+        self.analysis_options_frame.pack(fill=tk.X, pady=(10,0), side=tk.BOTTOM)
+
+        ttk.Label(self.analysis_options_frame, text="Target Comp. Name (GUI Name):").pack(side=tk.LEFT, padx=5)
+        self.target_comp_name_entry = ttk.Entry(self.analysis_options_frame, width=10)
+        self.target_comp_name_entry.pack(side=tk.LEFT, padx=5)
+
+        ttk.Label(self.analysis_options_frame, text="Target Node (for V(node,'0')):") .pack(side=tk.LEFT, padx=5)
+        self.target_node_name_entry = ttk.Entry(self.analysis_options_frame, width=10)
+        self.target_node_name_entry.pack(side=tk.LEFT, padx=5)
+
+        # Pre-fill example component rows and add some empty ones
+        self._add_component_row(load_data={'type':"V_Source_DC", 'name':"S1", 'value':"US_sym", 'n1':"n1", 'n2':"0"})
+        self._add_component_row(load_data={'type':"Resistor", 'name':"1", 'value':"R1_sym", 'n1':"n1", 'n2':"n2"})
+        self._add_component_row(load_data={'type':"Resistor", 'name':"2", 'value':"R2_sym", 'n1':"n2", 'n2':"0"})
+        for _ in range(3):
+            self._add_component_row()
+
 
     def display_message(self, title, message):
         # Helper to display messages in the results_text widget
@@ -168,59 +169,46 @@ class CircuitGUI(tk.Tk):
             self.top_instance.solve()
             self.display_message("Solver Status", "Symbolic solution complete.")
 
-            # --- 5. Derive and Display Example Formulas ---
-            formulas_str = "Derived Symbolic Formulas (for first valid component):\n"
-            first_comp_data = None
-            for comp_data_dict in circuit_data: # circuit_data from _collect_circuit_data()
-                if comp_data_dict.get('name') and comp_data_dict.get('n1'): # Basic check for a usable component
-                    first_comp_data = comp_data_dict
-                    break
+            # --- 5. Derive and Display Formulas based on Targets ---
+            formulas_str = "Derived Symbolic Formulas:\n"
+            target_comp_gui_name = self.target_comp_name_entry.get().strip()
+            target_node_name = self.target_node_name_entry.get().strip()
 
-            if first_comp_data:
-                comp_name = first_comp_data['name']
-                node1_name = first_comp_data['n1']
+            # circuit_data was collected at the start of this method (passed to _generate_spice_netlist)
 
-                # Attempt to get voltage at node1 of the first component (relative to ground '0')
+            if not target_comp_gui_name and not target_node_name:
+                formulas_str += "  No target component or node specified for detailed formula display.\n"
+                formulas_str += "  Please enter a component's GUI Name (e.g., 'S1', '1') or a Node Name.\n"
+
+            if target_comp_gui_name:
+                comp_details = self._get_component_details_from_gui_name(target_comp_gui_name, circuit_data)
+                if comp_details:
+                    formulas_str += f"  --- For Component (GUI Name: {target_comp_gui_name}, SPICE Name: {comp_details['spice_name']}) ---\n"
+                    try:
+                        v_expr = self.top_instance.v(comp_details['n1'], comp_details['n2'])
+                        formulas_str += f"    Voltage across (V({comp_details['n1']},{comp_details['n2']})): {sympy.pretty(v_expr)}\n"
+                    except Exception as e_v:
+                        formulas_str += f"    Could not derive V({comp_details['n1']},{comp_details['n2']}): {type(e_v).__name__} - {e_v}\n"
+                    try:
+                        i_expr = self.top_instance.i(comp_details['spice_name'])
+                        formulas_str += f"    Current through (I({comp_details['spice_name']})): {sympy.pretty(i_expr)}\n"
+                    except Exception as e_i:
+                        formulas_str += f"    Could not derive I({comp_details['spice_name']}): {type(e_i).__name__} - {e_i}\n"
+                    try:
+                        p_expr = self.top_instance.p(comp_details['spice_name'])
+                        formulas_str += f"    Power (P({comp_details['spice_name']})): {sympy.pretty(p_expr)}\n"
+                    except Exception as e_p:
+                        formulas_str += f"    Could not derive P({comp_details['spice_name']}): {type(e_p).__name__} - {e_p}\n"
+                else:
+                    formulas_str += f"  Component with GUI Name '{target_comp_gui_name}' not found in current circuit definition.\n"
+
+            if target_node_name:
+                formulas_str += f"  --- For Node {target_node_name} ---\n"
                 try:
-                    v_expr = self.top_instance.v(node1_name, '0')
-                    formulas_str += f"  Voltage at node '{node1_name}' (V({node1_name}, 0)): {sympy.pretty(v_expr)}\n"
-                except Exception as e_v:
-                    formulas_str += f"  Could not derive V({node1_name}): {type(e_v).__name__} - {e_v}\n"
-
-                # Attempt to get current through the first component
-                try:
-                    # Ensure the element name for i() matches the SPICE prefix + GUI name if parser uses that.
-                    # The _generate_spice_netlist prepends R, V, I to names.
-                    # For now, assume self.top_instance.i() can find 'comp_name' if that's how it's stored.
-                    # This might need adjustment if i() expects "R<comp_name>" etc.
-                    # Based on how elements are added in scs_parser.add_element, the key is `name` (e.g. "R1")
-                    # which is head (e.g. "R1"), not `comp['name']` ("1").
-                    # The current _generate_spice_netlist uses prefix + comp['name'] e.g. "RR1".
-                    # Let's assume for now the name in circuit_data is the one used in SPICE element line.
-                    # The _generate_spice_netlist uses `prefix + comp['name']` for the element line.
-                    # So if type is "Resistor" and name is "1", element is "R1".
-
-                    # Determine the full SPICE element name
-                    spice_el_name = ""
-                    if first_comp_data['type'] == "Resistor": spice_el_name = "R" + comp_name
-                    elif first_comp_data['type'] == "V_Source_DC": spice_el_name = "V" + comp_name
-                    elif first_comp_data['type'] == "I_Source_DC": spice_el_name = "I" + comp_name
-                    # Add more types if needed
-
-                    if spice_el_name:
-                        i_expr = self.top_instance.i(spice_el_name)
-                        formulas_str += f"  Current through element '{spice_el_name}' (I({spice_el_name})): {sympy.pretty(i_expr)}\n"
-
-                        # Attempt to get power in the first component
-                        p_expr = self.top_instance.p(spice_el_name)
-                        formulas_str += f"  Power in element '{spice_el_name}' (P({spice_el_name})): {sympy.pretty(p_expr)}\n"
-                    else:
-                        formulas_str += f"  Cannot determine SPICE name for element '{comp_name}' of type '{first_comp_data['type']}' to get I/P.\n"
-
-                except Exception as e_ip: # Catch errors for I and P derivation
-                    formulas_str += f"  Could not derive I/P for '{comp_name}': {type(e_ip).__name__} - {e_ip}\n"
-            else:
-                formulas_str += "  No valid components found to derive example formulas.\n"
+                    v_node_expr = self.top_instance.v(target_node_name, '0')
+                    formulas_str += f"    Voltage V({target_node_name}, '0'): {sympy.pretty(v_node_expr)}\n"
+                except Exception as e_vn:
+                    formulas_str += f"    Could not derive V({target_node_name}, '0'): {type(e_vn).__name__} - {e_vn}\n"
 
             self.display_message("Symbolic Formulas", formulas_str)
 
@@ -241,36 +229,106 @@ class CircuitGUI(tk.Tk):
                     print(f"Error removing temp file {temp_spice_file_path}: {e_remove}") # Log to console
 
         # After self.top_instance.solve() is successful, populate self.active_symbols_info
-        # This identifies which GUI-defined components correspond to free symbols in the solved model.
-        self.active_symbols_info.clear()
+        self.active_symbols_info.clear() # Clear from previous run
         if self.top_instance and self.top_instance.paramsd:
-            # These are the actual free symbols the circuit was solved in terms of.
-            # e.g. {sympy.Symbol('R1_sym'): sympy.Symbol('R1_sym'), sympy.Symbol('VS_sym'): sympy.Symbol('VS_sym')}
-            # The keys of paramsd are Symbol objects.
             defined_free_symbols = {str(s_obj) for s_obj in self.top_instance.paramsd if self.top_instance.paramsd[s_obj] == s_obj}
 
-            current_gui_circuit_data = self._collect_circuit_data() # circuit_data from GUI state when "Derive" was clicked
-
-            for comp_gui_dict in current_gui_circuit_data:
-                gui_name = comp_gui_dict['name'] # This is the "number", e.g., "1" for R1
-                val_str_from_gui = comp_gui_dict['value'] # This is the string from value field, e.g., "R1_sym"
+            # Use circuit_data that was used to generate the SPICE for this solve session
+            # This circuit_data was collected at the start of on_derive_formulas
+            for comp_gui_dict in circuit_data:
+                gui_name = comp_gui_dict['name']
+                val_str_from_gui = comp_gui_dict['value']
 
                 if val_str_from_gui in defined_free_symbols:
-                    # This component's value is one of the free symbols in the solved circuit
-                    prefix = 'X' # Default
+                    prefix = 'X'
                     if comp_gui_dict['type'] == "Resistor": prefix = 'R'
                     elif comp_gui_dict['type'] == "V_Source_DC": prefix = 'V'
                     elif comp_gui_dict['type'] == "I_Source_DC": prefix = 'I'
-                    actual_spice_name = prefix + gui_name # e.g. R1, VS1
+                    actual_spice_name = prefix + gui_name
 
                     self.active_symbols_info[gui_name] = {
-                        'symbol': sympy.Symbol(val_str_from_gui), # The actual sympy.Symbol object
+                        'symbol': sympy.Symbol(val_str_from_gui),
                         'spice_name': actual_spice_name,
                         'n1': comp_gui_dict['n1'],
-                        'n2': comp_gui_dict['n2'] if comp_gui_dict['n2'] else '0' # Default N2 to ground if empty
+                        'n2': comp_gui_dict['n2'] if comp_gui_dict['n2'] else '0'
                     }
             self.display_message("Solver Status", f"Identified active symbolic inputs for numerical calculation: {list(self.active_symbols_info.keys())}")
+    def _get_component_details_from_gui_name(self, target_gui_name_str, circuit_data):
+        if not target_gui_name_str:
+            return None
+        for comp_dict in circuit_data:
+            if comp_dict['name'] == target_gui_name_str:
+                prefix = 'X' # Default
+                comp_type_str = comp_dict['type']
+                if comp_type_str == "Resistor": prefix = 'R'
+                elif comp_type_str == "V_Source_DC": prefix = 'V'
+                elif comp_type_str == "I_Source_DC": prefix = 'I'
+                actual_spice_name = prefix + comp_dict['name']
 
+                return {
+                    'gui_name': comp_dict['name'],
+                    'spice_name': actual_spice_name,
+                    'n1': comp_dict['n1'],
+                    'n2': comp_dict['n2'] if comp_dict['n2'] else '0',
+                    'type': comp_dict['type'],
+                    'value_str': comp_dict['value']
+                }
+        return None
+
+    def _eval_expr_to_float(self, expr, default_on_error="N/A (eval error)"):
+        """ Helper to evaluate a sympy expression to float, handling potential errors."""
+        try:
+            if hasattr(expr, 'free_symbols') and expr.free_symbols:
+                 pass
+            return float(expr.evalf())
+        except (AttributeError, TypeError, sympy.SympifyError, Exception):
+            return default_on_error
+
+    def _add_component_row(self, load_data=None):
+        if load_data is None:
+            load_data = {}
+
+        row_frame = ttk.Frame(self.components_list_container_frame)
+        row_frame.pack(fill=tk.X, pady=2, padx=2)
+
+        component_types = ["", "Resistor", "V_Source_DC", "I_Source_DC"] # Duplicated for now, consider class/instance var
+
+        ttk.Label(row_frame, text=f"Comp {len(self.component_entries) + 1}: Type=").pack(side=tk.LEFT, padx=(0,2))
+        type_combo = ttk.Combobox(row_frame, values=component_types, width=12, state="readonly")
+        type_combo.pack(side=tk.LEFT, padx=2)
+        type_combo.set(load_data.get('type', ''))
+
+        ttk.Label(row_frame, text="Name=").pack(side=tk.LEFT, padx=(5,2))
+        name_entry = ttk.Entry(row_frame, width=8)
+        name_entry.pack(side=tk.LEFT, padx=2)
+        name_entry.insert(0, load_data.get('name', ''))
+
+        ttk.Label(row_frame, text="Value/Symbol=").pack(side=tk.LEFT, padx=(5,2))
+        value_entry = ttk.Entry(row_frame, width=10)
+        value_entry.pack(side=tk.LEFT, padx=2)
+        value_entry.insert(0, load_data.get('value', ''))
+
+        ttk.Label(row_frame, text="N1=").pack(side=tk.LEFT, padx=(5,2))
+        n1_entry = ttk.Entry(row_frame, width=5)
+        n1_entry.pack(side=tk.LEFT, padx=2)
+        n1_entry.insert(0, load_data.get('n1', ''))
+
+        ttk.Label(row_frame, text="N2=").pack(side=tk.LEFT, padx=(5,2))
+        n2_entry = ttk.Entry(row_frame, width=5)
+        n2_entry.pack(side=tk.LEFT, padx=2)
+        n2_entry.insert(0, load_data.get('n2', ''))
+
+        row_widgets = {
+            'frame': row_frame, 'type': type_combo, 'name': name_entry, 'value': value_entry,
+            'n1': n1_entry, 'n2': n2_entry
+        }
+        self.component_entries.append(row_widgets)
+
+    def _remove_last_component_row(self):
+        if self.component_entries:
+            last_row_widgets = self.component_entries.pop()
+            last_row_widgets['frame'].destroy()
+            # Adjust numbering if Comp labels were dynamic (Comp {i+1}) - for now, they are static at creation.
 
     def _collect_circuit_data(self):
         collected_data = []
@@ -379,77 +437,261 @@ class CircuitGUI(tk.Tk):
             return
 
         numerical_substitutions = {}
-        # Get current values from GUI entries FOR THE SYMBOLIC COMPONENTS
-        # self.active_symbols_info maps GUI component name (e.g., "1" for R1) to its symbolic info
+        current_circuit_data = self._collect_circuit_data() # Get current GUI state for component values
 
-        current_gui_values_map = {item['name']: item['value'] for item in self._collect_circuit_data()}
+        # Build numerical_substitutions dictionary based on self.active_symbols_info
+        # and current values in the GUI fields for those components.
+        numerical_substitutions = {}
         all_inputs_valid = True
+        if not self.active_symbols_info:
+             self.display_message("Info", "No symbolic parameters were identified in the previous 'Derive Formulas' step for substitution.")
+             # Continue to allow calculation for non-symbolic components or nodes if targeted
+        else:
+            gui_values_map = {item['name']: item['value'] for item in current_circuit_data}
+            for gui_comp_name_key, info in self.active_symbols_info.items():
+                symbol_obj = info['symbol']
+                current_value_str = gui_values_map.get(gui_comp_name_key)
+                if current_value_str is not None and current_value_str.strip() != "":
+                    try:
+                        num_val = float(current_value_str)
+                        numerical_substitutions[symbol_obj] = num_val
+                    except ValueError:
+                        self.display_message("Input Error", f"Value '{current_value_str}' for component '{gui_comp_name_key}' (symbol '{symbol_obj}') is not a valid number.")
+                        all_inputs_valid = False; break
+                else:
+                    self.display_message("Input Error", f"Missing numerical value for component '{gui_comp_name_key}' (symbol '{symbol_obj}').")
+                    all_inputs_valid = False; break
 
-        for gui_comp_name, info in self.active_symbols_info.items():
-            symbol_obj = info['symbol'] # The sympy.Symbol object, e.g., Symbol('R1_sym')
+            if not all_inputs_valid: # If any symbolic input was invalid, abort before further calculation
+                self.display_message("Calculation Status", "Numerical calculation aborted due to input errors for symbolic parameters.")
+                return
 
-            current_value_str = current_gui_values_map.get(gui_comp_name) # Get current text from GUI for this component
+            if numerical_substitutions :
+                self.display_message("Numerical Calculation", f"Substituting with: { {str(k):v for k,v in numerical_substitutions.items()} }")
 
-            if current_value_str is not None and current_value_str.strip() != "":
+        # --- Display numerical results for specified targets ---
+        results_str = "Numerical Results:\n"
+        target_comp_gui_name = self.target_comp_name_entry.get().strip()
+        target_node_name = self.target_node_name_entry.get().strip()
+
+        if not target_comp_gui_name and not target_node_name:
+            results_str += "  No target component or node specified for numerical calculation.\n"
+            results_str += "  Please enter a component's GUI Name or a Node Name in 'Analysis & Calculation Targets'.\n"
+
+        if target_comp_gui_name:
+            comp_details = self._get_component_details_from_gui_name(target_comp_gui_name, current_circuit_data)
+            if comp_details:
+                results_str += f"  --- For Component (GUI Name: {target_comp_gui_name}, SPICE Name: {comp_details['spice_name']}) ---\n"
                 try:
-                    num_val = float(current_value_str)
-                    numerical_substitutions[symbol_obj] = num_val
-                except ValueError:
-                    self.display_message("Input Error", f"Value '{current_value_str}' for component '{gui_comp_name}' (intended for symbol '{symbol_obj}') is not a valid number.")
-                    all_inputs_valid = False
+                    v_expr = self.top_instance.v(comp_details['n1'], comp_details['n2'])
+                    i_expr = self.top_instance.i(comp_details['spice_name'])
+                    p_expr = self.top_instance.p(comp_details['spice_name'])
+
+                    v_val_num_expr = v_expr.subs(numerical_substitutions)
+                    i_val_num_expr = i_expr.subs(numerical_substitutions)
+                    p_val_num_expr = p_expr.subs(numerical_substitutions)
+
+                    # Get component's own value (e.g. resistance, source value)
+                    # The value_str from comp_details might be a number string or a symbol string
+                    comp_own_val_expr = sympy.sympify(comp_details['value_str']) if comp_details['value_str'] else sympy.Float(0) # Default to 0 if empty
+                    if hasattr(comp_own_val_expr, 'subs'):
+                        comp_own_val_num_expr = comp_own_val_expr.subs(numerical_substitutions)
+                    else:
+                        comp_own_val_num_expr = comp_own_val_expr # Already a number if sympify made it so
+
+                    comp_val_numeric = self._eval_expr_to_float(comp_own_val_num_expr, "N/A (value not fully numeric or symbolic)")
+                    v_val_numeric = self._eval_expr_to_float(v_val_num_expr)
+                    i_val_numeric = self._eval_expr_to_float(i_val_num_expr)
+                    p_val_numeric = self._eval_expr_to_float(p_val_num_expr)
+
+                    comp_type_label = comp_details['type']
+                    # Display component's own value with appropriate unit (basic guess)
+                    unit_str = ""
+                    if comp_type_label == "Resistor": unit_str = "Ω"
+                    elif comp_type_label == "V_Source_DC": unit_str = "V"
+                    elif comp_type_label == "I_Source_DC": unit_str = "A"
+                    # Add more for C, L if they are added to GUI types
+
+                    results_str += f"    Value ({comp_type_label}): {comp_val_numeric if isinstance(comp_val_numeric, str) else f'{comp_val_numeric:.4f}'} {unit_str}\n"
+
+                    results_str += f"    Voltage across: {v_val_numeric if isinstance(v_val_numeric, str) else f'{v_val_numeric:.4f}'} V\n"
+                    results_str += f"    Current through: {i_val_numeric if isinstance(i_val_numeric, str) else f'{i_val_numeric * 1000:.4f}'} mA\n"
+                    results_str += f"    Power: {p_val_numeric if isinstance(p_val_numeric, str) else f'{p_val_numeric * 1000:.4f}'} mW\n"
+
+                except Exception as e_calc:
+                    results_str += f"    Error calculating numerical V/I/P for '{target_comp_gui_name}': {type(e_calc).__name__} - {e_calc}\n"
             else:
-                self.display_message("Input Error", f"Missing numerical value for component '{gui_comp_name}' (symbol '{symbol_obj}').")
-                all_inputs_valid = False # Require all identified symbols to get a value
+                results_str += f"  Component with GUI Name '{target_comp_gui_name}' not found in current circuit definition.\n"
 
-        if not all_inputs_valid or not numerical_substitutions:
-            self.display_message("Calculation Status", "Numerical calculation aborted due to input errors or no valid substitutions provided.")
-            return
-
-        self.display_message("Numerical Calculation", f"Attempting to substitute: { {str(k):v for k,v in numerical_substitutions.items()} }")
-
-        results_str = "Numerical V, I, P Results:\n"
-
-        for gui_comp_name, info in self.active_symbols_info.items():
-            spice_name = info['spice_name']
-            node1 = info['n1']
-            node2 = info['n2'] # Already defaults to '0' if originally empty
-
+        if target_node_name:
+            results_str += f"  --- For Node {target_node_name} ---\n"
             try:
-                v_expr = self.top_instance.v(node1, node2)
-                i_expr = self.top_instance.i(spice_name)
-                p_expr = self.top_instance.p(spice_name)
-
-                # Substitute numerical values into the symbolic expressions
-                v_val_num_expr = v_expr.subs(numerical_substitutions)
-                i_val_num_expr = i_expr.subs(numerical_substitutions)
-                p_val_num_expr = p_expr.subs(numerical_substitutions)
-
-                # Evaluate the substituted expressions to floats
-                # Add error handling for evalf() if expression is not fully numeric after subs
-                try:
-                    v_val_num = float(v_val_num_expr.evalf())
-                except (AttributeError, TypeError, sympy. SympifyError): # Catch if not an evaluable expression
-                    v_val_num = "N/A (expr not fully numeric)"
-                try:
-                    i_val_num = float(i_val_num_expr.evalf())
-                except (AttributeError, TypeError, sympy.SympifyError):
-                    i_val_num = "N/A (expr not fully numeric)"
-                try:
-                    p_val_num = float(p_val_num_expr.evalf())
-                except (AttributeError, TypeError, sympy.SympifyError):
-                    p_val_num = "N/A (expr not fully numeric)"
-
-                results_str += f"  For component '{gui_comp_name}' (as {spice_name}):\n"
-                results_str += f"    Voltage ({node1}{'-'+node2 if node2 != '0' else ''}): {v_val_num if isinstance(v_val_num, str) else f'{v_val_num:.4f}'} V\n"
-                results_str += f"    Current: {i_val_num if isinstance(i_val_num, str) else f'{i_val_num * 1000:.4f}'} mA\n"
-                results_str += f"    Power:   {p_val_num if isinstance(p_val_num, str) else f'{p_val_num * 1000:.4f}'} mW\n"
-            except Exception as e_calc:
-                results_str += f"  Error calculating numerical V/I/P for '{gui_comp_name}' (SPICE: {spice_name}): {type(e_calc).__name__} - {e_calc}\n"
-
-        if not self.active_symbols_info: # Should have been caught earlier, but as a fallback
-            results_str += "  No components were identified as having symbolic values from the 'Derive Formulas' step.\n"
+                v_node_expr = self.top_instance.v(target_node_name, '0')
+                v_node_num_expr = v_node_expr.subs(numerical_substitutions)
+                v_node_numeric = self._eval_expr_to_float(v_node_num_expr)
+                results_str += f"    Voltage V({target_node_name}, '0'): {v_node_numeric if isinstance(v_node_numeric, str) else f'{v_node_numeric:.4f}'} V\n"
+            except Exception as e_vn_calc:
+                results_str += f"    Could not calculate V({target_node_name}, '0'): {type(e_vn_calc).__name__} - {e_vn_calc}\n"
 
         self.display_message("Numerical Results", results_str)
+
+    def _eval_expr_to_float(self, expr, default_on_error="N/A (eval error)"):
+        """ Helper to evaluate a sympy expression to float, handling potential errors."""
+        try:
+            # Ensure all free symbols are substituted before evalf, otherwise it might not be float
+            if hasattr(expr, 'free_symbols') and expr.free_symbols:
+                # This indicates not all symbols were substituted by numerical_substitutions
+                # This can happen if a component value was numeric "100" but formulas still had "R1_sym"
+                # For now, we rely on numerical_substitutions to cover all active symbols.
+                # If free_symbols remain, evalf() might return a symbolic expr, not a float.
+                 pass # Proceed and let float() attempt conversion.
+            return float(expr.evalf())
+        except (AttributeError, TypeError, sympy.SympifyError, Exception):
+            return default_on_error
+
+    def _save_circuit_to_file(self):
+        circuit_data = self._collect_circuit_data()
+        if not circuit_data:
+            # Using messagebox for interactive feedback, though display_message is also an option
+            messagebox.showwarning("Save Circuit", "No circuit data to save.")
+            # self.display_message("Save Circuit", "No circuit data to save.")
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Save Circuit As",
+            initialdir=os.path.join(os.getcwd(), "examples") # Suggest examples directory
+        )
+        if not filepath: # User cancelled
+            return
+
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(circuit_data, f, indent=4)
+            self.display_message("Save Circuit", f"Circuit saved successfully to {os.path.basename(filepath)}")
+        except Exception as e:
+            self.display_message("Save Error", f"Failed to save circuit: {type(e).__name__} - {e}")
+
+    def _load_circuit_from_file(self):
+        filepath = filedialog.askopenfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Load Circuit From",
+            initialdir=os.path.join(os.getcwd(), "examples") # Suggest examples directory
+        )
+        if not filepath: # User cancelled
+            return
+
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f)
+
+            if not isinstance(loaded_data, list):
+                raise ValueError("File does not contain a valid list of circuit components.")
+
+            # Clear existing component rows from GUI
+            while self.component_entries:
+                self._remove_last_component_row()
+
+            # Add new rows from loaded data
+            for component_data in loaded_data:
+                if not isinstance(component_data, dict) or \
+                   not all(k in component_data for k in ['type', 'name', 'value', 'n1', 'n2']):
+                    self.display_message("Load Warning", f"Skipping invalid or incomplete component data: {component_data}")
+                    continue
+                self._add_component_row(load_data=component_data)
+
+            self.display_message("Load Circuit", f"Circuit loaded successfully from {os.path.basename(filepath)}")
+
+            # Clear any previous results/formulas as the circuit has changed
+            self.results_text.config(state=tk.NORMAL)
+            self.results_text.delete('1.0', tk.END)
+            self.results_text.config(state=tk.DISABLED)
+
+            # Invalidate old solved instance and active symbols
+            if hasattr(self, 'top_instance'):
+                self.top_instance = None
+            if hasattr(self, 'active_symbols_info'):
+                self.active_symbols_info.clear()
+
+        except FileNotFoundError:
+            self.display_message("Load Error", f"File not found: {filepath}")
+        except json.JSONDecodeError:
+            self.display_message("Load Error", "File is not a valid JSON format.")
+        except ValueError as ve:
+            self.display_message("Load Error", str(ve))
+        except Exception as e:
+            self.display_message("Load Error", f"Failed to load circuit: {type(e).__name__} - {e}")
+
+    def _select_component_for_placement(self, comp_type):
+        self.selected_component_to_place = comp_type
+        if comp_type:
+            self.display_message("Status", f"{comp_type} selected. Click on the canvas to place.")
+        else: # E.g. if a "Pointer" tool was selected
+            self.display_message("Status", "Placement mode deselected (Pointer tool active).")
+
+    def _on_canvas_click(self, event):
+        if self.selected_component_to_place:
+            x, y = event.x, event.y
+            comp_type = self.selected_component_to_place
+
+            logical_item_id = self.next_graphical_item_id
+            self.next_graphical_item_id += 1
+
+            canvas_item_ids = self._draw_component_symbol(x, y, comp_type, logical_item_id)
+
+            self.placed_graphical_items.append({
+                'id': logical_item_id,
+                'type': comp_type,
+                'x': x,
+                'y': y,
+                'canvas_item_ids': canvas_item_ids
+            })
+
+            self.display_message("Canvas", f"Placed {comp_type} (ID: {logical_item_id}) at ({x}, {y}).")
+            # To place multiple of the same type, keep self.selected_component_to_place active.
+            # To place only one, uncomment below:
+            # self.selected_component_to_place = None
+            # self.display_message("Status", "Placement mode deselected. Select new component.")
+        else:
+            self.display_message("Canvas", f"Canvas clicked at ({event.x}, {event.y}) - No component type selected from palette.")
+
+    def _draw_component_symbol(self, x, y, comp_type, item_id):
+        # item_id is the logical ID of the component instance
+        tag = f"comp_{item_id}" # Tag for all parts of this component symbol
+        canvas_ids = []
+        size = 20 # Half-size for easier coordinate management (e.g. center is x,y)
+
+        if comp_type == "Resistor":
+            # Simple rectangle for resistor
+            rect_id = self.canvas.create_rectangle(x - size*1.5, y - size*0.5, x + size*1.5, y + size*0.5, outline="black", fill="lightblue", tags=(tag,))
+            canvas_ids.append(rect_id)
+        elif comp_type == "V_Source_DC":
+            # Circle for DC voltage source
+            circle_id = self.canvas.create_oval(x - size, y - size, x + size, y + size, outline="black", fill="lightgreen", tags=(tag,))
+            # Polarity lines (simple plus/minus) - ensure they are visible relative to size
+            plus_id = self.canvas.create_line(x, y - size*0.6, x, y - size*0.2, tags=(tag,)) # Vertical part of +
+            self.canvas.create_line(x - size*0.2, y - size*0.4, x + size*0.2, y - size*0.4, tags=(tag,)) # Horizontal part of +
+            minus_id = self.canvas.create_line(x - size*0.2, y + size*0.4, x + size*0.2, y + size*0.4, width=2, tags=(tag,)) # Minus
+            canvas_ids.extend([circle_id, plus_id, minus_id]) # minus_id is already a list from create_line
+        elif comp_type == "I_Source_DC":
+            # Circle with an arrow for DC current source
+            circle_id = self.canvas.create_oval(x - size, y - size, x + size, y + size, outline="black", fill="lightpink", tags=(tag,))
+            # Arrow (pointing up)
+            arrow_body_id = self.canvas.create_line(x, y + size*0.6, x, y - size*0.6, tags=(tag,))
+            arrow_head_id = self.canvas.create_line(x, y - size*0.6, x - size*0.2, y - size*0.3, x + size*0.2, y - size*0.3, x, y-size*0.6, smooth=True, tags=(tag,))
+            canvas_ids.extend([circle_id, arrow_body_id, arrow_head_id])
+        else:
+            # Default placeholder for unknown types
+            text_id = self.canvas.create_text(x, y, text=f"{comp_type[:3]}?", tags=(tag,))
+            canvas_ids.append(text_id)
+
+        # Add a small text label with the logical ID for debugging/identification
+        label_id = self.canvas.create_text(x, y - size - 7, text=f"{comp_type[0]}{item_id}", font=("Arial", 8), tags=(tag,)) # Adjusted font size and offset
+        canvas_ids.append(label_id)
+
+        return canvas_ids
 
 
 if __name__ == '__main__':
