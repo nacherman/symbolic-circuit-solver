@@ -1,20 +1,41 @@
+"""
+Utility functions for symbolic circuit analysis and verification.
+
+This module provides helper functions for:
+- Evaluating Sympy symbolic expressions with numerical substitutions.
+- Comparing numerical values within a tolerance.
+- Generating sets of test points (parameter value maps) for systematically
+  testing or verifying circuit behavior under different conditions.
+"""
 import sympy
 import random
-import math # Added import
+import math
 
 def evaluate_symbolic_expr(expression, subs_dict: dict):
     """
-    Substitutes symbols in a Sympy expression with numerical values from a dictionary
-    and evaluates the expression to a float.
+    Substitutes symbols in a Sympy expression and evaluates it to a float.
+
+    If the expression itself is already a number and `subs_dict` is empty,
+    it will be directly converted to float. If `subs_dict` is provided for an already
+    numerical expression, it's ignored.
+    Handles potential errors during substitution or evaluation by returning None.
 
     Args:
-        expression: The Sympy expression.
-        subs_dict: A dictionary mapping Sympy symbols (or string names that can be
-                   converted to symbols if needed, though direct symbol keys are preferred)
-                   to numerical values.
+        expression: The Sympy expression (e.g., `x + y`) or a numerical value.
+        subs_dict (dict): A dictionary mapping Sympy symbols (e.g., `sympy.Symbol('x')`)
+                          to numerical values (e.g., `1.0`). String keys in `subs_dict`
+                          are generally not processed directly by `expression.subs()`
+                          unless the expression itself contains symbols matching those
+                          string names (which is less common for Sympy expressions
+                          created from symbolic analysis). It's recommended to use
+                          Sympy symbols as keys in `subs_dict`.
 
     Returns:
-        float: The evaluated numerical result, or None if an error occurs.
+        float or None: The evaluated numerical result as a float.
+                       Returns None if the expression is None, or if any error
+                       (e.g., AttributeError for non-Sympy objects without `subs`,
+                       TypeError for incompatible operations, ValueError for failed
+                       conversion to float) occurs during the process.
     """
     if expression is None:
         return None
@@ -36,16 +57,24 @@ def evaluate_symbolic_expr(expression, subs_dict: dict):
 
 def compare_numerical_values(val1, val2, tolerance=1e-6):
     """
-    Compares two numerical values within a given tolerance.
+    Compares two numerical values within a specified absolute tolerance.
+
+    Attempts to convert both input values to floats before comparison.
+    If conversion fails for either value (e.g., they are not numerical),
+    it returns False.
 
     Args:
-        val1: The first numerical value.
-        val2: The second numerical value.
-        tolerance (float): The maximum allowed absolute difference. Defaults to 1e-6.
+        val1 (any): The first numerical value (or value convertible to float).
+        val2 (any): The second numerical value (or value convertible to float).
+        tolerance (float, optional): The maximum allowed absolute difference
+                                     for the values to be considered equal.
+                                     Defaults to 1e-6.
 
     Returns:
-        bool: True if the absolute difference is within tolerance, False otherwise.
-              Returns False if inputs are not numerical.
+        bool: True if the absolute difference between `val1` and `val2`
+              is less than or equal to `tolerance`.
+              False if the difference is greater than `tolerance`, or if
+              either value cannot be converted to a float.
     """
     try:
         num1 = float(val1)
@@ -72,34 +101,94 @@ def generate_test_points(
     random_I_range: tuple = (-1.0, 1.0),
     random_other_range: tuple = (0.1, 100.0),
     log_scale_random_for_R: bool = False,
-    symbol_specific_random_ranges: dict = None # New parameter
+    symbol_specific_random_ranges: dict = None
 ) -> list[dict]:
     """
-    Generates a list of dictionaries, where each dictionary is a set of parameter values
-    for a given set of Sympy symbols.
+    Generates sets of parameter values for a given collection of Sympy symbols.
+
+    This function creates a specified number of "test points", where each test point
+    is a dictionary mapping Sympy symbols to numerical values. These value sets can be
+    generated using different strategies: cycling through predefined lists or
+    generating random values (linearly or log-scaled).
+
+    The generation process for each symbol in each test set follows this order of precedence:
+    1.  **Custom List**: If the symbol is in `custom_symbol_value_lists` with a non-empty
+        list, a value is chosen by cycling through that list (`set_index % list_length`).
+    2.  **Random Generation** (if `generation_mode == 'random'` and not covered by custom list):
+        a.  **Symbol-Specific Range**: If the symbol (or its string name) is in
+            `symbol_specific_random_ranges` with a valid (min, max) tuple, that range is used.
+        b.  **Global Type Range**: If no specific range, a global range
+            (`random_R_range`, `random_V_range`, etc.) is chosen based on the symbol's
+            name prefix ('r', 'v'/'u', 'i', or other).
+        c.  **Log-Scale for R-types**: If `log_scale_random_for_R` is True and the symbol
+            is R-type and the chosen range is valid for log scaling (min > 0, max > 0),
+            the value is generated as `10**random.uniform(log10(min), log10(max))`.
+            If the range is invalid for log-scale, a warning is printed, and it falls
+            back to linear random generation.
+        d.  **Linear Random**: Otherwise, `random.uniform(min, max)` is used.
+        e.  Resistance values are ensured to be positive.
+    3.  **Cyclic Default Generation** (if `generation_mode == 'cycle'` and not covered by custom list):
+        A default list (`default_R_values`, etc.) is chosen based on symbol name prefix.
+        A value is selected by cycling through this list (`set_index % list_length`).
 
     Args:
-        symbols_set (set): A Python set of Sympy symbols.
-        num_sets (int): The number of parameter value dictionaries to generate.
-        custom_symbol_value_lists (dict, optional): Dictionary mapping symbols (or symbol names)
-                                                     to specific lists of values to cycle through.
-                                                     Takes precedence over default/random generation.
-        default_R_values (list, optional): For 'cycle' mode, list of default values for R-like symbols.
-        default_V_values (list, optional): For 'cycle' mode, list of default values for V-like symbols.
-        default_I_values (list, optional): For 'cycle' mode, list of default values for I-like symbols.
-        default_other_values (list, optional): For 'cycle' mode, list of default values for other symbols.
-        generation_mode (str): 'cycle' (default cyclic selection) or 'random' (random selection).
-        random_R_range (tuple): (min, max) for random R values. Ensure min > 0.
-        random_V_range (tuple): (min, max) for random V values.
-        random_I_range (tuple): (min, max) for random I values.
-        random_other_range (tuple): (min, max) for random other values.
-        log_scale_random_for_R (bool): If True and mode is 'random', R-types use log-scale.
-        symbol_specific_random_ranges (dict, optional): Maps symbols (or names) to specific
-                                                         (min, max) random ranges, overriding global ones.
+        symbols_set (set): A Python set of Sympy symbols (e.g., `{sympy.symbols('R1')}`).
+        num_sets (int, optional): The number of parameter value dictionaries (test sets)
+                                  to generate. Defaults to 3.
+        custom_symbol_value_lists (dict, optional): A dictionary mapping Sympy symbols
+                                                    or their string names to specific lists
+                                                    of values. These values will be cycled
+                                                    through for the respective symbols,
+                                                    overriding any other generation rules.
+                                                    Example: `{sympy.symbols('V_in'): [1.0, 1.5, 2.0]}`
+                                                    or `{'V_in': [1.0, 1.5, 2.0]}`.
+                                                    Defaults to None.
+        default_R_values (list, optional): For `'cycle'` mode, the list of default
+                                           values for symbols starting with 'r' or 'R'.
+                                           Defaults to `[100.0, 1000.0, 10000.0]`.
+        default_V_values (list, optional): For `'cycle'` mode, for symbols starting
+                                           with 'v', 'V', 'u', or 'U'.
+                                           Defaults to `[1.0, 5.0, 10.0]`.
+        default_I_values (list, optional): For `'cycle'` mode, for symbols starting
+                                           with 'i' or 'I'.
+                                           Defaults to `[0.001, 0.01, 0.1]`.
+        default_other_values (list, optional): For `'cycle'` mode, for any other symbols.
+                                               Defaults to `[1.0, 2.0, 0.5]`.
+        generation_mode (str, optional): Specifies the value generation strategy.
+                                         - 'cycle': Values are chosen cyclically from
+                                           default lists or custom lists. (Default)
+                                         - 'random': Values are chosen randomly within
+                                           specified ranges.
+        random_R_range (tuple, optional): Default `(min, max)` tuple for R-type symbols
+                                          in `'random'` mode. Defaults to `(10.0, 100000.0)`.
+                                          Min must be > 0 for log-scaling.
+        random_V_range (tuple, optional): Default `(min, max)` for V/U-type symbols
+                                          in `'random'` mode. Defaults to `(-10.0, 10.0)`.
+        random_I_range (tuple, optional): Default `(min, max)` for I-type symbols
+                                          in `'random'` mode. Defaults to `(-1.0, 1.0)`.
+        random_other_range (tuple, optional): Default `(min, max)` for other symbols
+                                              in `'random'` mode. Defaults to `(0.1, 100.0)`.
+        log_scale_random_for_R (bool, optional): If `True` and `generation_mode` is
+                                                 `'random'`, R-type symbols will have values
+                                                 generated from a log-uniform distribution
+                                                 within their range. Defaults to False.
+        symbol_specific_random_ranges (dict, optional): Maps Sympy symbols or their string
+                                                        names to specific `(min, max)` tuples
+                                                        for random generation, overriding the
+                                                        global `random_..._range` for those
+                                                        symbols. Works with `log_scale_random_for_R`.
+                                                        Example: `{sympy.symbols('R_special'): (1, 1e6)}`.
+                                                        Defaults to None.
 
     Returns:
-        list[dict]: A list of dictionaries, where keys are Sympy symbols and
-                    values are their assigned numerical test values.
+        list[dict]: A list of dictionaries. Each dictionary represents a test set,
+                    mapping each Sympy symbol from `symbols_set` to an assigned
+                    numerical value. The order of symbols within each dictionary
+                    is based on sorting their names alphabetically.
+                    Example: `[{R1_sym: 100.0, V_in_sym: 1.0}, {R1_sym: 1000.0, V_in_sym: 5.0}]`
+
+    Raises:
+        ValueError: If an invalid `generation_mode` is provided.
     """
     if generation_mode == 'cycle':
         if default_R_values is None: default_R_values = [100.0, 1000.0, 10000.0]

@@ -1,6 +1,30 @@
+"""
+Framework for Verifying Symbolic Circuit Formulas against Numerical Simulations.
+
+This module provides tools to compare symbolic expressions (e.g., for node voltages,
+element currents, or power) derived from a circuit's symbolic solution against
+numerical results obtained from DC MNA simulations. It allows for systematic
+testing across various parameter values.
+
+Key features include:
+- A `VerificationSuite` class to manage and run a collection of verification tasks
+  defined for a single netlist, loadable from a YAML configuration.
+- Individual `verify_*_formula` functions for direct, standalone verification of
+  specific symbolic expressions.
+- Generation of test points (parameter value sets) using strategies like random
+  linear or log-scale distributions, with options for custom value lists and
+  symbol-specific ranges.
+- Comparison of symbolic evaluation results with numerical simulation results,
+  reporting matches and mismatches with detailed information.
+
+The primary goal is to ensure the correctness and consistency of symbolic
+formulas by checking them against a trusted numerical solver over a range of
+input parameters.
+"""
 import sympy
 import os
 import sys
+import yaml
 
 # Adjust sys.path for direct script execution
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +37,10 @@ from symbolic_circuit_solver_master import scs_utils
 from symbolic_circuit_solver_master import scs_numerical_solver
 from symbolic_circuit_solver_master import scs_errors
 
-# Imports needed for the __main__ test block
+# import yaml # Already imported at the top level of the module
+import argparse # Added for CLI argument parsing
+
+# Imports needed for the __main__ test block (and VerificationSuite)
 from symbolic_circuit_solver_master import scs_circuit
 from symbolic_circuit_solver_master import scs_parser as scs_parser_module
 from symbolic_circuit_solver_master import scs_instance_hier
@@ -133,14 +160,15 @@ def _verify_generic_expression(
 
             if user_param_override_values:
                 print(f"  Applying overrides: {user_param_override_values}")
-                for str_key, fixed_value in user_param_override_values.items():
-                    symbol_to_override = next((s for s in current_symbolic_eval_params if s.name == str_key), None)
-                    if symbol_to_override:
-                        current_symbolic_eval_params[symbol_to_override] = fixed_value
-                        current_numerical_solver_params[symbol_to_override] = fixed_value
+                # user_param_override_values now comes with Sympy keys from VerificationSuite.load_from_yaml
+                for sym_key, fixed_value in user_param_override_values.items():
+                    if sym_key in current_symbolic_eval_params: # Check if the override is for a free_symbol of the expression
+                        current_symbolic_eval_params[sym_key] = fixed_value
+                        current_numerical_solver_params[sym_key] = fixed_value
                     else:
-                        print(f"    Note: Override '{str_key}' not in formula's free symbols. Adding/overriding for numerical solver.")
-                        current_numerical_solver_params[sympy.symbols(str_key)] = fixed_value
+                        # If not a free_symbol, it might be another netlist .PARAM to set for numerical solver
+                        print(f"    Note: Override for '{sym_key.name}' not in formula's free symbols. Applying to numerical solver only.")
+                        current_numerical_solver_params[sym_key] = fixed_value # Assumes sym_key is already a Symbol object
 
             current_param_values_str = {str(k): v for k, v in current_symbolic_eval_params.items()}
             print(f"  Testing with parameters (for symbolic eval): {current_param_values_str}")
@@ -183,7 +211,7 @@ def _verify_generic_expression(
                     else:
                         mismatch_this_point = True
                         mismatches_details.append({
-                            'param_map': current_symbolic_eval_params, # Changed from params_map_sympy_keys
+                            'param_map': current_symbolic_eval_params,
                             'params_str': current_param_values_str,
                             'numerical_value': numerical_value,
                             'symbolic_eval_value_original': symbolic_eval_value,
@@ -193,7 +221,7 @@ def _verify_generic_expression(
                 else:
                     mismatch_this_point = True
                     mismatches_details.append({
-                        'param_map': current_symbolic_eval_params, # Changed from params_map_sympy_keys
+                        'param_map': current_symbolic_eval_params,
                         'params_str': current_param_values_str,
                         'numerical_value': numerical_value,
                         'symbolic_eval_value_original': symbolic_eval_value,
@@ -207,27 +235,19 @@ def _verify_generic_expression(
                 import traceback
                 traceback.print_exc()
                 mismatches_details.append({
-                    'param_map': current_symbolic_eval_params, # Changed from params_map_sympy_keys
+                    'param_map': current_symbolic_eval_params,
                     'params_str': current_param_values_str,
                     'error': str(e_loop)})
 
             if mismatch_this_point and stop_on_first_mismatch:
-                # Ensure verified_all will be False if we break due to mismatch
-                # final_verified_all computation below will handle this correctly
-                # as mismatches_details will not be empty.
                 print(f"  STOPPING further tests for '{target_identifier}' due to mismatch and stop_on_first_mismatch=True.")
                 break
 
-    # Determine final verification status
     if actual_tests_run == 0 and num_test_sets > 0 and not (not free_symbols and symbolic_expr is not None):
-        # This case means no tests were actually performed for a variable expression, which is a failure.
         final_verified_all = False
     elif stop_on_first_mismatch and len(mismatches_details) > 0 and actual_tests_run < num_test_sets :
-        # If stopped early due to a mismatch, it's not fully verified.
         final_verified_all = False
     else:
-        # Normal case: all planned tests run (or constant expression tested once)
-        # Verified if no mismatches AND (all tests run OR it was a constant formula OR num_test_sets was 0)
         final_verified_all = (len(mismatches_details) == 0) and \
                              (matches_count == actual_tests_run) and \
                              (actual_tests_run > 0 or (actual_tests_run == 0 and num_test_sets == 0))
@@ -245,6 +265,31 @@ def verify_node_voltage_formula(
     symbolic_expr, target_node_name: str, netlist_path: str,
     num_test_sets: int = 5, user_param_override_values: dict = None,
     stop_on_first_mismatch: bool = False, symbol_specific_random_ranges: dict = None) -> dict:
+    """
+    Verifies a symbolic node voltage formula against numerical simulations.
+
+    This function is a specific wrapper around `_verify_generic_expression` tailored
+    for node voltage verifications. It can be used standalone or by `VerificationSuite`.
+
+    Args:
+        symbolic_expr: The Sympy expression representing the node voltage formula.
+        target_node_name (str): The name of the node whose voltage is being verified
+                                (e.g., "N_out"). Assumed to be voltage relative to ground.
+        netlist_path (str): Path to the netlist file for numerical simulation.
+        num_test_sets (int, optional): Number of random parameter sets to test. Defaults to 5.
+        user_param_override_values (dict, optional): Dictionary to override specific
+                                                     parameter values for all test sets.
+                                                     Keys are Sympy symbols or string names.
+        stop_on_first_mismatch (bool, optional): If True, stops after the first mismatch.
+                                                 Defaults to False.
+        symbol_specific_random_ranges (dict, optional): Maps Sympy symbols or string names
+                                                        to (min, max) tuples for random generation,
+                                                        overriding global defaults.
+
+    Returns:
+        dict: A summary dictionary of the verification results, including pass/fail status,
+              number of matches/mismatches, and details of any mismatches.
+    """
     def get_node_voltage_from_results(results_dict, node_name):
         if results_dict and 'node_voltages' in results_dict:
             return results_dict['node_voltages'].get(node_name)
@@ -257,6 +302,21 @@ def verify_element_current_formula(
     symbolic_expr_for_current, target_element_name: str, netlist_path: str,
     num_test_sets: int = 5, user_param_override_values: dict = None,
     stop_on_first_mismatch: bool = False, symbol_specific_random_ranges: dict = None) -> dict:
+    """
+    Verifies a symbolic element current formula against numerical simulations.
+
+    Wrapper around `_verify_generic_expression` for element current.
+    Can be used standalone or by `VerificationSuite`.
+
+    Args:
+        symbolic_expr_for_current: Sympy expression for the element's current.
+        target_element_name (str): Name of the element (e.g., "R1").
+        netlist_path (str): Path to the netlist file.
+        Other args are identical to `verify_node_voltage_formula`.
+
+    Returns:
+        dict: A summary dictionary of verification results.
+    """
     def get_element_current_from_results(results_dict, element_name):
         if results_dict and 'element_currents' in results_dict:
             return results_dict['element_currents'].get(element_name)
@@ -269,6 +329,21 @@ def verify_vsource_current_formula(
     symbolic_expr, vsource_name: str, netlist_path: str,
     num_test_sets: int = 5, user_param_override_values: dict = None,
     stop_on_first_mismatch: bool = False, symbol_specific_random_ranges: dict = None) -> dict:
+    """
+    Verifies a symbolic voltage source current formula against numerical simulations.
+
+    Wrapper around `_verify_generic_expression` for current through a voltage source.
+    Can be used standalone or by `VerificationSuite`.
+
+    Args:
+        symbolic_expr: Sympy expression for the voltage source's current.
+        vsource_name (str): Name of the voltage source element (e.g., "Vin", "E_opamp").
+        netlist_path (str): Path to the netlist file.
+        Other args are identical to `verify_node_voltage_formula`.
+
+    Returns:
+        dict: A summary dictionary of verification results.
+    """
     def get_vsource_current_from_results(results_dict, name):
         if results_dict and 'vsource_currents' in results_dict:
             return results_dict['vsource_currents'].get(name)
@@ -281,6 +356,21 @@ def verify_element_power_formula(
     symbolic_expr_for_power, target_element_name: str, netlist_path: str,
     num_test_sets: int = 5, user_param_override_values: dict = None,
     stop_on_first_mismatch: bool = False, symbol_specific_random_ranges: dict = None) -> dict:
+    """
+    Verifies a symbolic element power formula against numerical simulations.
+
+    Wrapper around `_verify_generic_expression` for element power.
+    Can be used standalone or by `VerificationSuite`.
+
+    Args:
+        symbolic_expr_for_power: Sympy expression for the element's power.
+        target_element_name (str): Name of the element (e.g., "R1", "Vin").
+        netlist_path (str): Path to the netlist file.
+        Other args are identical to `verify_node_voltage_formula`.
+
+    Returns:
+        dict: A summary dictionary of verification results.
+    """
     def get_element_power_from_results(results_dict, element_name):
         if results_dict and 'element_power' in results_dict:
             return results_dict['element_power'].get(element_name)
@@ -289,255 +379,438 @@ def verify_element_power_formula(
                                       num_test_sets, user_param_override_values, get_element_power_from_results, "Element Power",
                                       stop_on_first_mismatch, symbol_specific_random_ranges)
 
-if __name__ == '__main__':
-    print("--- Verification Utility Self-Test ---")
+# Helper for printing mismatch details (used by VerificationSuite and standalone tests)
+def print_mismatch_details_helper(details):
+    """
+    Prints detailed information about mismatches found during verification.
 
-    netlist_content_simple_divider = """
-* Voltage Divider Test for Verification Utility
-.PARAM V_in_sym = V_in_sym
-.PARAM R1_sym = R1_sym
-.PARAM R2_sym = R2_sym
-V1 N_in 0 V_in_sym
-R1 N_in N_out R1_sym
-R2 N_out 0 R2_sym
-.end
-"""
-    temp_file_simple_divider = "temp_verifier_simple_divider.sp"
-    with open(temp_file_simple_divider, 'w') as f:
-        f.write(netlist_content_simple_divider)
+    Args:
+        details (list[dict]): A list of mismatch detail dictionaries, typically
+                              from the 'mismatches_details' field of a verification
+                              summary. Each dictionary contains information about
+                              a specific failing test point.
+    """
+    for detail in details:
+        param_map_for_print = detail.get('param_map', detail.get('params_map_sympy_keys'))
+        if isinstance(param_map_for_print, dict):
+            param_map_str = {str(k): v for k, v in param_map_for_print.items()} # Ensure keys are strings for print
+            print(f"    Failing Parameter Map: {param_map_str}")
+        else:
+            # Fallback for older format or constant expression cases
+            print(f"    Params: {detail.get('params_str', 'N/A')}")
 
-    print("\n--- Processing Simple Divider for V and I Formulas ---")
-    top_circuit_sd = scs_circuit.TopCircuit()
-    parsed_circuit_sd = scs_parser_module.parse_file(temp_file_simple_divider, top_circuit_sd)
-    if not parsed_circuit_sd: print("SIMPLE DIVIDER PARSING FAILED"); sys.exit(1)
-    top_instance_sd = scs_instance_hier.make_top_instance(parsed_circuit_sd)
-    if not top_instance_sd: print("SIMPLE DIVIDER INSTANCE CREATION FAILED"); sys.exit(1)
-    top_instance_sd.solve()
-    v_n_out_sd_expr = top_instance_sd.v('N_out', '0')
-    i_r1_sd_expr = top_instance_sd.i('R1')
-    print(f"  Derived V(N_out) for simple divider: {v_n_out_sd_expr}")
-    print(f"  Derived I(R1) for simple divider: {i_r1_sd_expr}")
+        s_val = detail.get('symbolic_eval_value_original', detail.get('symbolic_eval_value'))
+        n_val = detail.get('numerical_value')
+        print(f"    Symbolic Value: {s_val}")
+        print(f"    Numerical Value: {n_val}")
 
-    # Helper for printing mismatch details
-    def print_mismatch_details(details):
-        for detail in details:
-            param_map_for_print = detail.get('param_map', detail.get('params_map_sympy_keys')) # Use new 'param_map' key
-            if isinstance(param_map_for_print, dict):
-                 # Convert sympy symbols in keys to strings for cleaner printing
-                param_map_str = {str(k): v for k, v in param_map_for_print.items()}
-                print(f"    Failing Parameter Map: {param_map_str}")
+        if detail.get('compared_symbolic_value_as_absorbed') not in ["N/A", None]:
+            print(f"    Compared Symbolic (Power Absorbed Convention): {detail.get('compared_symbolic_value_as_absorbed')}")
+
+        if n_val is not None and s_val is not None:
+            try:
+                n_val_f = float(n_val)
+                s_val_f = float(s_val)
+                if n_val_f != 0:
+                    perc_diff = abs(s_val_f - n_val_f) / abs(n_val_f) * 100
+                    print(f"    Percentage Difference (vs Numerical): {perc_diff:.4f}%")
+                elif s_val_f != 0:
+                    print(f"    Percentage Difference: Inf (Numerical is zero, Symbolic is non-zero)")
+                else:
+                    print(f"    Percentage Difference: 0.0000% (Both zero)")
+            except (ValueError, TypeError) as e_conv:
+                print(f"    Percentage Difference: N/A (Could not convert symbolic '{s_val}' or numerical '{n_val}' to float for diff: {e_conv})")
+
+        if 'note' in detail: print(f"    Note: {detail['note']}")
+        if 'error' in detail: print(f"    Error: {detail['error']}")
+        print("    ----")
+
+class VerificationSuite:
+    """
+    Manages and runs a suite of verification tasks for a single circuit netlist.
+
+    This class allows users to define multiple verification tasks (e.g., checking
+    different node voltages, element currents, or powers) for a circuit specified
+    by a netlist file. It handles parsing the netlist and solving for symbolic
+    expressions once, then uses these for all tasks in the suite.
+    The suite can be configured programmatically by adding tasks or loaded from
+    a YAML file.
+
+    Typical Usage:
+    1. Instantiate `VerificationSuite` with the `netlist_path`.
+    2. Add verification tasks using `add_task()` or load a suite using
+       `VerificationSuite.load_from_yaml()`.
+    3. Call the `run()` method to execute all tasks.
+    4. The `run()` method returns a summary dictionary containing overall results
+       and detailed results for each task.
+
+    The results dictionary from `run()` includes:
+    - 'suite_name': Name of the suite.
+    - 'status': 'PASS' or 'FAIL' for the entire suite.
+    - 'passed_tasks': Number of tasks that passed.
+    - 'total_tasks': Total number of tasks executed.
+    - 'task_results': A list of individual task summary dictionaries.
+    """
+    def __init__(self, netlist_path: str, suite_name: str = None):
+        """
+        Initializes a VerificationSuite.
+
+        Args:
+            netlist_path (str): The file path to the SPICE-like netlist.
+            suite_name (str, optional): A descriptive name for this verification suite.
+                                        If None, a name is generated from the netlist filename.
+        """
+        self.netlist_path = netlist_path
+        self.suite_name = suite_name if suite_name else f"Verification Suite for {os.path.basename(netlist_path)}"
+        self.tasks = []
+        self.top_instance = None
+        self.verification_functions_map = {
+            'node_voltage': verify_node_voltage_formula,
+            'element_current': verify_element_current_formula,
+            'vsource_current': verify_vsource_current_formula,
+            'element_power': verify_element_power_formula,
+        }
+
+    def add_task(self, task_name: str, verification_type: str, target_identifier: str,
+                 num_test_sets: int = 5, symbol_specific_random_ranges: dict = None,
+                 user_param_override_values: dict = None, stop_on_first_mismatch: bool = False):
+        """
+        Adds a verification task to the suite.
+
+        Args:
+            task_name (str): A descriptive name for this specific verification task.
+            verification_type (str): The type of quantity to verify. Supported types are:
+                                     'node_voltage', 'element_current',
+                                     'vsource_current', 'element_power'.
+            target_identifier (str): The name of the node or element to target.
+                                     For 'node_voltage', if a single node name (e.g., "N1")
+                                     is given, it's assumed relative to ground ("N1,0").
+                                     For differential voltage, use "N1,N2".
+                                     For elements/vsources, use their netlist name (e.g., "R1", "Vin").
+            num_test_sets (int, optional): Number of random parameter sets for verification.
+                                           Defaults to 5.
+            symbol_specific_random_ranges (dict, optional): Maps Sympy symbols or string names
+                                                            to (min, max) tuples for random
+                                                            value generation for specific symbols.
+                                                            Defaults to None.
+                                                            Note: If loaded from YAML, string keys
+                                                            are converted to Sympy symbols by loader.
+            user_param_override_values (dict, optional): Dictionary to override specific
+                                                         parameter values (Sympy symbol or string name
+                                                         keys) for all test sets within this task.
+                                                         Defaults to None.
+                                                         Note: If loaded from YAML, string keys
+                                                         are converted to Sympy symbols by loader.
+            stop_on_first_mismatch (bool, optional): If True, this task stops testing
+                                                     after the first mismatch.
+                                                     Defaults to False.
+        """
+        if verification_type not in self.verification_functions_map:
+            print(f"Error: Unknown verification_type '{verification_type}' for task '{task_name}'. Skipping.")
+            return
+
+        self.tasks.append({
+            'task_name': task_name,
+            'verification_type': verification_type,
+            'target_identifier': target_identifier,
+            'num_test_sets': num_test_sets,
+            'symbol_specific_random_ranges': symbol_specific_random_ranges,
+            'user_param_override_values': user_param_override_values,
+            'stop_on_first_mismatch': stop_on_first_mismatch,
+        })
+        print(f"Task '{task_name}' ({verification_type} for {target_identifier}) added to suite '{self.suite_name}'.")
+
+    def _prepare_instance(self) -> bool:
+        print(f"\n--- Preparing Circuit Instance for Suite: {self.suite_name} ---")
+        print(f"Parsing netlist: {self.netlist_path}")
+        try:
+            top_circuit = scs_circuit.TopCircuit()
+            parsed_circuit = scs_parser_module.parse_file(self.netlist_path, top_circuit)
+            if not parsed_circuit:
+                print("Error: Netlist parsing failed.")
+                return False
+
+            print("Creating top instance...")
+            self.top_instance = scs_instance_hier.make_top_instance(parsed_circuit)
+            if not self.top_instance:
+                print("Error: Instance creation failed.")
+                return False
+
+            print("Solving circuit symbolically for the suite...")
+            self.top_instance.solve() # Solve once for all tasks in the suite
+            print("Symbolic solution complete for the suite.")
+            return True
+        except Exception as e:
+            print(f"Error during instance preparation or solving: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _derive_symbolic_expr(self, verification_type: str, target_identifier: str):
+        if not self.top_instance:
+            print("Error: Top instance not prepared. Cannot derive symbolic expression.")
+            return None
+
+        print(f"Deriving symbolic expression for {verification_type} of '{target_identifier}'...")
+        expr = None
+        try:
+            if verification_type == 'node_voltage':
+                # Assuming target_identifier like 'N1' means V(N1,0) or 'N1,N2' means V(N1,N2)
+                nodes = target_identifier.split(',')
+                if len(nodes) == 1:
+                    expr = self.top_instance.v(nodes[0], '0')
+                elif len(nodes) == 2:
+                    expr = self.top_instance.v(nodes[0], nodes[1])
+                else:
+                    print(f"Error: Invalid target_identifier '{target_identifier}' for node_voltage.")
+                    return None
+            elif verification_type == 'element_current' or verification_type == 'vsource_current':
+                # Assuming .i() method works for both general elements and voltage sources names
+                expr = self.top_instance.i(target_identifier)
+            elif verification_type == 'element_power':
+                expr = self.top_instance.p(target_identifier)
             else:
-                # Fallback for older format or constant expression cases
-                print(f"    Params: {detail.get('params_str', 'N/A')}")
+                print(f"Error: Unknown verification_type '{verification_type}' for expression derivation.")
+                return None
+            print(f"  Derived: {expr}")
+            return expr
+        except Exception as e:
+            print(f"Error deriving symbolic expression for {target_identifier} ({verification_type}): {type(e).__name__} - {e}")
+            return None
 
-            s_val = detail.get('symbolic_eval_value_original', detail.get('symbolic_eval_value'))
-            n_val = detail.get('numerical_value')
-            print(f"    Symbolic Value: {s_val}")
-            print(f"    Numerical Value: {n_val}")
+    def run(self, show_individual_task_summaries: bool = True):
+        print(f"\n--- Running Verification Suite: {self.suite_name} ---")
+        if not self._prepare_instance():
+            return {
+                'suite_name': self.suite_name,
+                'status': 'ERROR_PREPARATION',
+                'message': 'Failed to prepare circuit instance.',
+                'passed_tasks': 0,
+                'total_tasks': len(self.tasks),
+                'task_results': []
+            }
 
-            if detail.get('compared_symbolic_value_as_absorbed') not in ["N/A", None]:
-                print(f"    Compared Symbolic (Power Absorbed Convention): {detail.get('compared_symbolic_value_as_absorbed')}")
+        suite_results = []
+        overall_passed_count = 0
 
-            if n_val is not None and s_val is not None:
-                try:
-                    n_val_f = float(n_val)
-                    # Use the 'original' symbolic value if available, else the direct one.
-                    # For power, if 'compared_symbolic_value_as_absorbed' was used for comparison,
-                    # the % diff should still be based on the 'symbolic_eval_value_original'
-                    # to reflect the formula as written by user, or be clear about convention.
-                    # For now, using s_val (which is symbolic_eval_value_original from detail)
-                    s_val_f = float(s_val)
+        for task_idx, task_params in enumerate(self.tasks):
+            task_name = task_params['task_name']
+            verification_type = task_params['verification_type']
+            target_identifier = task_params['target_identifier']
 
-                    if n_val_f != 0:
-                        perc_diff = abs(s_val_f - n_val_f) / abs(n_val_f) * 100
-                        print(f"    Percentage Difference (vs Numerical): {perc_diff:.4f}%")
-                    elif s_val_f != 0: # n_val is 0, s_val is not
-                        print(f"    Percentage Difference: Inf (Numerical is zero, Symbolic is non-zero)")
-                    else: # Both zero
-                        print(f"    Percentage Difference: 0.0000% (Both zero)")
+            print(f"\n--- Running Task {task_idx+1}/{len(self.tasks)}: {task_name} ({verification_type} for {target_identifier}) ---")
 
-                except (ValueError, TypeError) as e_conv:
-                    print(f"    Percentage Difference: N/A (Could not convert symbolic '{s_val}' or numerical '{n_val}' to float for diff: {e_conv})")
+            symbolic_expr = self._derive_symbolic_expr(verification_type, target_identifier)
 
-            if 'note' in detail: print(f"    Note: {detail['note']}")
-            if 'error' in detail: print(f"    Error: {detail['error']}")
-            print("    ----") # Separator for multiple mismatches
+            task_summary = None
+            if symbolic_expr is None:
+                task_summary = {
+                    'task_name': task_name, 'verified_all': False, 'error': 'Failed to derive symbolic expression',
+                    'target_identifier': target_identifier, 'verification_type': verification_type
+                }
+            else:
+                verify_function = self.verification_functions_map.get(verification_type)
+                if verify_function:
+                    task_summary = verify_function(
+                        symbolic_expr,
+                        target_identifier,
+                        self.netlist_path,
+                        num_test_sets=task_params['num_test_sets'],
+                        symbol_specific_random_ranges=task_params['symbol_specific_random_ranges'],
+                        user_param_override_values=task_params['user_param_override_values'],
+                        stop_on_first_mismatch=task_params['stop_on_first_mismatch']
+                    )
+                    task_summary['task_name'] = task_name # Ensure task_name is in summary
+                else: # Should have been caught by add_task, but as a safeguard
+                    task_summary = {
+                        'task_name': task_name, 'verified_all': False, 'error': f'Unknown verification type {verification_type}',
+                        'target_identifier': target_identifier, 'verification_type': verification_type
+                    }
 
-    results_v_sd = verify_node_voltage_formula(v_n_out_sd_expr, 'N_out', temp_file_simple_divider, num_test_sets=2)
-    print("\n--- Voltage Verification (Simple Divider, No Override) ---")
-    print(f"  Result summary: { {k:v for k,v in results_v_sd.items() if k != 'mismatches_details'} }")
-    if results_v_sd['mismatches_details']: print_mismatch_details(results_v_sd['mismatches_details'])
+            suite_results.append(task_summary)
+            if task_summary.get('verified_all', False):
+                overall_passed_count += 1
 
-    results_i_sd = verify_element_current_formula(i_r1_sd_expr, 'R1', temp_file_simple_divider, num_test_sets=2)
-    print("\n--- Current Verification (Simple Divider, R1) ---")
-    print(f"  Result summary: { {k:v for k,v in results_i_sd.items() if k != 'mismatches_details'} }")
-    if results_i_sd['mismatches_details']: print_mismatch_details(results_i_sd['mismatches_details'])
+            if show_individual_task_summaries:
+                print(f"  Summary for Task '{task_name}': {'PASS' if task_summary.get('verified_all') else 'FAIL'}")
+                if not task_summary.get('verified_all') and 'error' in task_summary:
+                     print(f"    Error: {task_summary['error']}")
+                if task_summary.get('mismatches_details'):
+                    print("    Mismatch Details:")
+                    print_mismatch_details_helper(task_summary['mismatches_details'])
 
-    # Test stop_on_first_mismatch=True
-    print("\n--- Testing stop_on_first_mismatch=True (forcing a mismatch for V(N_out)) ---")
-    v_in_sym_for_test, r1_sym_for_test, r2_sym_for_test = sympy.symbols('V_in_sym R1_sym R2_sym')
-    correct_expr_for_symbols = (r2_sym_for_test * v_in_sym_for_test) / (r1_sym_for_test + r2_sym_for_test)
-    faulty_expr = correct_expr_for_symbols * 0.99 # Introduce 1% error to ensure mismatch
-    # Using sympy.symbols('ErrorForce') could also work if added to the expression,
-    # e.g. faulty_expr = correct_expr_for_symbols + sympy.symbols('R1_sym') * 0.0001
-    # to use an existing symbol if 'ErrorForce' is not defined in the netlist params.
-    # The current faulty_expr approach is simpler.
+        print(f"\n\n--- Overall Suite Summary for: {self.suite_name} ---")
+        print(f"Passed {overall_passed_count}/{len(self.tasks)} tasks.")
+        final_status = 'PASS' if overall_passed_count == len(self.tasks) else 'FAIL'
 
-    print(f"  Intentionally using faulty expression: {faulty_expr} for V(N_out)")
-    results_stop_test = verify_node_voltage_formula(
-        faulty_expr,
-        'N_out',
-        temp_file_simple_divider,
-        num_test_sets=5, # Use more than 1 to demonstrate it stops early
-        stop_on_first_mismatch=True
-    )
-    print("\n--- Verification Summary (Stop on First Mismatch Test for V(N_out)) ---")
-    summary_dict_stop_test = {k:v for k,v in results_stop_test.items() if k != 'mismatches_details'}
-    print(f"  Result summary: {summary_dict_stop_test}")
-    if results_stop_test['mismatches_details']:
-        print(f"  Mismatch Details (expecting only 1 due to stop_on_first_mismatch=True):")
-        print_mismatch_details(results_stop_test['mismatches_details'])
+        if final_status == 'FAIL':
+            print("\nDetails of failed tasks:")
+            for result in suite_results:
+                if not result.get('verified_all', False):
+                    task_name = result.get('task_name', 'Unknown Task')
+                    target_id = result.get('target_node', result.get('target_element', result.get('target_identifier', 'Unknown Target')))
+                    v_type = result.get('verification_type', 'Unknown Type')
+                    error_msg = result.get('error', '')
+                    mismatches = result.get('mismatches', 0)
 
-    if summary_dict_stop_test.get('total_tests_run') == 1 and summary_dict_stop_test.get('mismatches') == 1:
-        print("  VERIFIED: stop_on_first_mismatch correctly stopped after 1 test point on the first mismatch.")
-    elif summary_dict_stop_test.get('total_tests_planned') > 1 : # only print error if it was supposed to run multiple tests
-        print("  WARNING: stop_on_first_mismatch test did not behave as expected. Check 'total_tests_run'.")
+                    fail_reason = f"Mismatches: {mismatches}" if mismatches > 0 else f"Error: {error_msg}" if error_msg else "Reason not specified"
+                    print(f"  - Task: '{task_name}' ({v_type} for '{target_id}') - Status: FAIL ({fail_reason})")
+
+        return {
+            'suite_name': self.suite_name,
+            'status': final_status,
+            'passed_tasks': overall_passed_count,
+            'total_tasks': len(self.tasks),
+            'task_results': suite_results
+        }
+
+    @classmethod
+    def load_from_yaml(cls, yaml_filepath: str):
+        """
+        Loads a verification suite configuration from a YAML file.
+
+        The YAML file should define `suite_name`, `netlist_path`, and a list of `tasks`.
+        Each task specifies its `task_name`, `type`, `target`, and optional parameters
+        like `num_sets`, `symbol_specific_random_ranges` (with string keys for symbols),
+        `user_param_override_values` (with string keys for parameters), and
+        `stop_on_first_mismatch`.
+
+        String keys for symbols/parameters in `symbol_specific_random_ranges` and
+        `user_param_override_values` from the YAML are converted to Sympy `Symbol`
+        objects before being added to tasks.
+
+        If `netlist_path` in YAML is relative, it's resolved relative to the
+        YAML file's directory.
+
+        Args:
+            yaml_filepath (str): The path to the YAML configuration file.
+
+        Returns:
+            VerificationSuite or None: An instance of `VerificationSuite` configured
+                                      according to the YAML file, or `None` if
+                                      loading or parsing fails or essential data
+                                      is missing.
+        """
+        print(f"\n--- Loading Verification Suite from YAML: {yaml_filepath} ---")
+        try:
+            with open(yaml_filepath, 'r') as f:
+                config = yaml.safe_load(f)
+        except Exception as e:
+            print(f"Error reading or parsing YAML file '{yaml_filepath}': {type(e).__name__} - {e}")
+            return None
+
+        suite_name = config.get('suite_name', f"Suite from {os.path.basename(yaml_filepath)}")
+        netlist_path = config.get('netlist_path')
+
+        if not netlist_path:
+            print(f"Error: 'netlist_path' not found in YAML configuration '{yaml_filepath}'.")
+            return None
+
+        # Make netlist_path absolute if it's relative to the YAML file's directory
+        if not os.path.isabs(netlist_path):
+            yaml_dir = os.path.dirname(os.path.abspath(yaml_filepath))
+            netlist_path = os.path.join(yaml_dir, netlist_path)
+            print(f"  Adjusted relative netlist_path to: {netlist_path}")
 
 
-    if os.path.exists(temp_file_simple_divider): os.remove(temp_file_simple_divider)
-    print(f"\nCleaned up {temp_file_simple_divider}.")
+        suite = cls(netlist_path=netlist_path, suite_name=suite_name)
 
-    # --- Test with a more complex circuit ---
-    netlist_content_complex = """
-* Complex Test Circuit: Inverting Op-Amp with Symbolic Params
-.PARAM V_source_sym = V_source_sym
-.PARAM R1_sym = R1_sym
-.PARAM R2_val = 10k          ; Fixed R2
-.PARAM Aol_sym = Aol_sym
+        yaml_tasks = config.get('tasks', [])
+        if not yaml_tasks:
+            print(f"Warning: No tasks found in YAML configuration for suite '{suite_name}'.")
 
-Vin N_in 0 V_source_sym
-R1 N_in N_minus R1_sym
-R2 N_minus N_out R2_val
-E_opamp N_out 0 0 N_minus Aol_sym
-.end
-"""
-    temp_file_complex = "temp_complex_circuit.sp"
-    with open(temp_file_complex, 'w') as f:
-        f.write(netlist_content_complex)
+        for task_data in yaml_tasks:
+            task_name = task_data.get('task_name')
+            verification_type = task_data.get('type')
+            target_identifier = task_data.get('target')
 
-    print("\n--- Processing Complex Circuit (Inverting Op-Amp) ---")
-    top_circuit_complex = scs_circuit.TopCircuit()
-    parsed_circuit_complex = scs_parser_module.parse_file(temp_file_complex, top_circuit_complex)
-    if not parsed_circuit_complex: print("COMPLEX CIRCUIT PARSING FAILED"); sys.exit(1)
-    top_instance_complex = scs_instance_hier.make_top_instance(parsed_circuit_complex)
-    if not top_instance_complex: print("COMPLEX CIRCUIT INSTANCE CREATION FAILED"); sys.exit(1)
+            # Check for essential keys
+            missing_keys = []
+            if task_name is None: missing_keys.append('task_name')
+            if verification_type is None: missing_keys.append('type')
+            if target_identifier is None: missing_keys.append('target')
 
-    print("Solving complex circuit symbolically...")
-    top_instance_complex.solve()
-    print("Symbolic solution complete for complex circuit.")
+            if missing_keys:
+                effective_task_name = task_name if task_name else "Unnamed Task"
+                print(f"Warning: Skipping task '{effective_task_name}' due to missing essential key(s): {', '.join(missing_keys)}.")
+                continue
 
-    v_n_out_expr_sym = top_instance_complex.v('N_out', '0')
-    i_r1_expr_sym = top_instance_complex.i('R1')
-    i_vin_expr_sym = top_instance_complex.i('Vin')
-    i_e_opamp_expr_sym = top_instance_complex.i('E_opamp')
-    p_r2_expr_sym = top_instance_complex.p('R2')
-    p_e_opamp_expr_sym = top_instance_complex.p('E_opamp')
+            # Get optional parameters, relying on add_task defaults if not present
+            num_sets = task_data.get('num_sets', 5) # Default from add_task signature
 
-    print(f"  Derived V(N_out) complex (symbolic): {v_n_out_expr_sym}")
-    print(f"  Derived I(R1) complex (symbolic): {i_r1_expr_sym}")
-    print(f"  Derived I(Vin) complex (symbolic): {i_vin_expr_sym}")
-    print(f"  Derived I(E_opamp) complex (symbolic): {i_e_opamp_expr_sym}")
-    print(f"  Derived P(R2) complex (symbolic): {p_r2_expr_sym}")
-    print(f"  Derived P(E_opamp) complex (symbolic): {p_e_opamp_expr_sym}")
+            # Process symbol_specific_random_ranges: convert string keys to Symbol objects
+            symbol_specific_ranges_sympykeyed = None
+            symbol_specific_ranges_yaml = task_data.get('symbol_specific_random_ranges')
+            if isinstance(symbol_specific_ranges_yaml, dict):
+                symbol_specific_ranges_sympykeyed = {
+                    sympy.symbols(str_key): value
+                    for str_key, value in symbol_specific_ranges_yaml.items()
+                }
 
-    num_complex_tests = 3
-    # Define symbols used in the complex circuit for specific ranges
-    V_source_sym_cplx = sympy.symbols('V_source_sym')
-    R1_sym_cplx = sympy.symbols('R1_sym')
-    Aol_sym_cplx = sympy.symbols('Aol_sym')
+            # Process user_param_override_values: convert string keys to Symbol objects
+            user_param_overrides_sympykeyed = None
+            user_param_overrides_yaml = task_data.get('user_param_override_values')
+            if isinstance(user_param_overrides_yaml, dict):
+                user_param_overrides_sympykeyed = {
+                    sympy.symbols(str_key): value
+                    for str_key, value in user_param_overrides_yaml.items()
+                }
 
-    complex_circuit_verification_summaries = []
+            stop_on_first_mismatch_yaml = task_data.get('stop_on_first_mismatch', False)
 
-    # Example of using symbol_specific_random_ranges
-    specific_ranges_for_complex_test = {
-        R1_sym_cplx: (500.0, 1500.0),       # R1_sym will be log-scaled within 500-1500
-        Aol_sym_cplx: (10000.0, 50000.0)  # Aol_sym will be linear-scaled within 10k-50k
-                                          # V_source_sym_cplx will use global V-range
-    }
-    print(f"\n--- Verifying V(N_out) from Complex Circuit (Symbolic Params) with Specific Ranges ---")
-    print(f"  Using specific random ranges: { {str(k):v for k,v in specific_ranges_for_complex_test.items()} }")
-    results_vnout = verify_node_voltage_formula(
-        v_n_out_expr_sym, 'N_out', temp_file_complex,
-        num_test_sets=num_complex_tests,
-        symbol_specific_random_ranges=specific_ranges_for_complex_test
-    )
-    complex_circuit_verification_summaries.append(results_vnout)
-    print(f"  Result summary: { {k:v for k,v in results_vnout.items() if k != 'mismatches_details'} }")
-    if results_vnout['mismatches_details']: print_mismatch_details(results_vnout['mismatches_details'])
+            suite.add_task(
+                task_name=task_name,
+                verification_type=verification_type,
+                target_identifier=target_identifier,
+                num_test_sets=num_sets,
+                symbol_specific_random_ranges=symbol_specific_ranges_sympykeyed,
+                user_param_override_values=user_param_overrides_sympykeyed,
+                stop_on_first_mismatch=stop_on_first_mismatch_yaml
+            )
+        return suite
 
-    print(f"\n--- Verifying I(R1) from Complex Circuit (Symbolic Params) ---")
-    results_ir1 = verify_element_current_formula(i_r1_expr_sym, 'R1', temp_file_complex, num_test_sets=num_complex_tests)
-    complex_circuit_verification_summaries.append(results_ir1)
-    print(f"  Result summary: { {k:v for k,v in results_ir1.items() if k != 'mismatches_details'} }")
-    if results_ir1['mismatches_details']: print_mismatch_details(results_ir1['mismatches_details'])
 
-    print(f"\n--- Verifying I(Vin) from Complex Circuit (Symbolic Params) ---")
-    results_ivin = verify_vsource_current_formula(i_vin_expr_sym, 'Vin', temp_file_complex, num_test_sets=num_complex_tests)
-    complex_circuit_verification_summaries.append(results_ivin)
-    print(f"  Result summary: { {k:v for k,v in results_ivin.items() if k != 'mismatches_details'} }")
-    if results_ivin['mismatches_details']: print_mismatch_details(results_ivin['mismatches_details'])
+import argparse # Added for CLI argument parsing
 
-    print(f"\n--- Verifying I(E_opamp) from Complex Circuit (Symbolic Params) ---")
-    results_ieopamp = verify_vsource_current_formula(i_e_opamp_expr_sym, 'E_opamp', temp_file_complex, num_test_sets=num_complex_tests)
-    complex_circuit_verification_summaries.append(results_ieopamp)
-    print(f"  Result summary: { {k:v for k,v in results_ieopamp.items() if k != 'mismatches_details'} }")
-    if results_ieopamp['mismatches_details']: print_mismatch_details(results_ieopamp['mismatches_details'])
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Run a verification suite from a YAML configuration file.")
+    parser.add_argument('yaml_filepath', help='Path to the YAML file defining the verification suite.')
 
-    print(f"\n--- Verifying P(R2) from Complex Circuit (Symbolic Params) ---")
-    results_pr2 = verify_element_power_formula(p_r2_expr_sym, 'R2', temp_file_complex, num_test_sets=num_complex_tests)
-    complex_circuit_verification_summaries.append(results_pr2)
-    print(f"  Result summary: { {k:v for k,v in results_pr2.items() if k != 'mismatches_details'} }")
-    if results_pr2['mismatches_details']: print_mismatch_details(results_pr2['mismatches_details'])
+    args = parser.parse_args()
 
-    print(f"\n--- Verifying P(E_opamp) from Complex Circuit (Symbolic Params) ---")
-    results_peopamp = verify_element_power_formula(p_e_opamp_expr_sym, 'E_opamp', temp_file_complex, num_test_sets=num_complex_tests)
-    complex_circuit_verification_summaries.append(results_peopamp)
-    print(f"  Result summary: { {k:v for k,v in results_peopamp.items() if k != 'mismatches_details'} }")
-    if results_peopamp['mismatches_details']: print_mismatch_details(results_peopamp['mismatches_details'])
+    print(f"--- Verification Utility: Loading suite from {args.yaml_filepath} ---")
 
-    # --- Overall Summary for Complex Circuit ---
-    total_complex_checks = len(complex_circuit_verification_summaries)
-    passed_complex_checks = 0
-    for summary in complex_circuit_verification_summaries:
-        if summary.get('verified_all', False):
-            passed_complex_checks += 1
+    suite = VerificationSuite.load_from_yaml(args.yaml_filepath)
 
-    print(f"\n\n--- Complex Circuit Overall Verification Summary ---")
-    print(f"Passed {passed_complex_checks}/{total_complex_checks} checks.")
+    if suite:
+        run_summary = suite.run(show_individual_task_summaries=True)
 
-    if passed_complex_checks < total_complex_checks:
-        print("\nDetails of failed checks for Complex Circuit:")
-        for summary in complex_circuit_verification_summaries:
-            if not summary.get('verified_all', False):
-                target_id = summary.get('target_node', summary.get('target_element', 'Unknown Target'))
-                formula = summary.get('symbolic_formula', 'Unknown Formula')
-                # Attempt to infer expression type from target key
-                expr_type = "Node Voltage" if 'target_node' in summary else \
-                            "Element Current" if target_id.startswith(('R','L','C')) else \
-                            "VSource Current" if target_id.startswith(('V','E','H')) else \
-                            "Element Power" # Fallback, could be more specific
-                # This inference of expr_type is heuristic; actual type passed to _verify_generic_expression would be better.
-                # However, the summary dictionary doesn't store 'expression_type_str' directly.
-                # For now, target_id and formula should be enough for identification.
-                print(f"  - Failed: Verification for '{target_id}'. Formula: {formula}")
-                # Detailed mismatches were already printed when the check was run.
-                # If more detail is needed here, one could re-print summary['mismatches_details']
+        print("\n--- Final Overall Suite Run Summary (from CLI execution) ---")
+        print(f"Suite Name: {run_summary.get('suite_name')}")
+        print(f"Overall Status: {run_summary.get('status')}")
+        print(f"Passed Tasks: {run_summary.get('passed_tasks')}/{run_summary.get('total_tasks')}")
+
+        if run_summary.get('status') == 'FAIL' or run_summary.get('status') == 'ERROR_PREPARATION':
+            if run_summary.get('status') == 'ERROR_PREPARATION':
+                print(f"Reason: {run_summary.get('message')}")
+            else: # FAIL
+                print("Details of failed/error tasks (from final summary object):")
+                for task_res in run_summary.get('task_results', []):
+                    if not task_res.get('verified_all', True): # Assume fail if 'verified_all' is missing
+                        t_name = task_res.get('task_name', 'Unknown Task')
+                        t_id_node = task_res.get('target_node')
+                        t_id_elem = task_res.get('target_element')
+                        t_id_fallback = task_res.get('target_identifier', 'Unknown Target')
+                        target_id_str = t_id_node if t_id_node else t_id_elem if t_id_elem else t_id_fallback
+
+                        t_vtype = task_res.get('verification_type', 'Unknown Type')
+                        t_error = task_res.get('error', '')
+                        t_mismatches = task_res.get('mismatches', 0)
+
+                        reason = f"Mismatches: {t_mismatches}" if t_mismatches > 0 else f"Error: {t_error}" if t_error else "Not specified"
+                        print(f"  - Task: '{t_name}' ({t_vtype} for '{target_id_str}') - Status: FAIL ({reason})")
     else:
-        print("All complex circuit verification checks passed successfully!")
+        print(f"Failed to load verification suite from {args.yaml_filepath}.")
+        sys.exit(1) # Exit with error code if suite loading fails
 
-
-    if os.path.exists(temp_file_complex):
-        os.remove(temp_file_complex)
-    print(f"\nCleaned up {temp_file_complex}.")
-
-    print("\nAll tests finished.")
+    print("\nCommand-line verification run finished.")

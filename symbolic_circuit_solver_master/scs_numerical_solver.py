@@ -1,3 +1,16 @@
+"""
+DC Numerical Solver for Electronic Circuits using Modified Nodal Analysis (MNA).
+
+This module provides functions to:
+1.  Construct the MNA matrices (A and z) for a given circuit instance.
+2.  Solve these matrices to find DC operating points (node voltages and currents through
+    voltage sources).
+3.  Calculate currents and power dissipation for all elements based on the solution.
+
+The primary public interface is `solve_dc_numerically()`, which takes a netlist
+file path and parameter values, parses the netlist, builds the MNA system,
+solves it, and returns a comprehensive dictionary of results.
+"""
 import numpy as np
 import sympy # May be needed for type checking or symbol manipulation
 from .scs_instance_hier import Instance # Assuming Instance is in scs_instance_hier
@@ -293,7 +306,6 @@ def build_numerical_mna(instance: Instance, param_values: dict):
                 z_num[node_to_index[n2_name]] += i_val
 
         # CCCS logic was added here in a previous step, ensuring it's before independent CurrentSource
-        # No further TODO needed here if CCCS is already handled by an elif before CurrentSource
 
     return A_num, z_num, node_to_index, vsource_to_current_idx
 
@@ -503,6 +515,301 @@ def solve_dc_numerically(netlist_path: str, param_values: dict):
     # If all successful, call the instance solver
     return solve_dc_numerically_from_instance(top_instance, param_values)
 
+
+def solve_dc_numerically_from_instance(instance: Instance, param_values: dict):
+    """
+    Solves for the DC operating point of a pre-existing circuit Instance.
+
+    This function takes a circuit `Instance` object (presumably already created and
+    potentially symbolically solved if parameters depend on circuit variables) and
+    a dictionary of numerical values for all parameters. It then builds and solves
+    the Modified Nodal Analysis (MNA) system for this specific numerical instance.
+
+    Args:
+        instance (Instance): The circuit instance object, typically obtained from
+                             `scs_instance_hier.make_top_instance()` and potentially
+                             after calling `instance.solve()` if its parameters
+                             involve symbolic expressions of circuit variables.
+        param_values (dict): A dictionary mapping Sympy symbols (representing circuit
+                             parameters like resistances, source values, gains, etc.)
+                             to their specific numerical values for this simulation.
+                             Example: `{sympy.symbols('R1_val'): 1000.0, sympy.symbols('V_in'): 5.0}`
+
+    Returns:
+        dict or None: A dictionary containing the simulation results if successful,
+                      otherwise None. The dictionary has the following structure:
+                      - 'node_voltages' (dict): Maps node names (str) to their DC voltage (float).
+                        e.g., `{'N1': 5.0, 'N2': 2.5}`
+                      - 'vsource_currents' (dict): Maps names of voltage sources (V, E, H types)
+                        (str) to the DC current flowing through them (float). The current
+                        is defined as flowing from the positive to the negative terminal
+                        of the source. The MNA variable represents current leaving the positive terminal.
+                        e.g., `{'V1': -0.005}` (meaning 5mA flows into V1's positive terminal)
+                      - 'element_currents' (dict): Maps all element names (str) to the DC
+                        current flowing through them (float). For resistors, current flows
+                        from the first listed node to the second. For current sources, it's
+                        their defined current. For controlled sources, it's their calculated
+                        output current.
+                        e.g., `{'R1': 0.005, 'I1': 0.001}`
+                      - 'element_power' (dict): Maps all element names (str) to the DC power
+                        absorbed by that element (float). Positive for absorbed power,
+                        negative for supplied power.
+                        e.g., `{'R1': 0.025, 'V1': -0.05}` (V1 supplies 50mW)
+                      - Individual node voltages are also available directly as top-level keys
+                        for convenience, e.g., `"V(N1)": 5.0`.
+
+    Raises:
+        np.linalg.LinAlgError: If the MNA matrix is singular and cannot be solved.
+        Other exceptions may occur for unexpected issues during matrix building or solving.
+    """
+    A_num, z_num, node_to_index, vsource_to_current_idx = build_numerical_mna(instance, param_values)
+
+    if A_num is None or z_num is None or node_to_index is None or vsource_to_current_idx is None:
+        print("Error: MNA matrix construction failed.")
+        return None
+
+    # Check if the matrix is empty (e.g. circuit with only ground node)
+    # build_numerical_mna now returns empty dicts for node_to_index and vsource_to_current_idx in such cases.
+    if A_num.shape[0] == 0 and A_num.shape[1] == 0 :
+        if not node_to_index and not vsource_to_current_idx : # Truly empty circuit from MNA perspective
+             print("Circuit has no non-ground nodes and no voltage sources. DC solution is trivial (all 0V relative to ground).")
+             return {} # Or specific format indicating this
+        # If there are nodes/vsources but matrix is 0x0, it's an issue from build_numerical_mna
+        print("Warning: MNA matrix is 0x0 but node/vsource maps are not empty. Check build_numerical_mna.")
+        return {}
+
+
+    try:
+        solution_vector = np.linalg.solve(A_num, z_num)
+
+        results_dict = {}
+        # Node voltages
+        for node_name, index in node_to_index.items():
+            results_dict[f"V({node_name})"] = solution_vector[index]
+
+        # Node voltages (store under 'node_voltages' key for clarity)
+        results_dict['node_voltages'] = {}
+        for node_name, index in node_to_index.items():
+            results_dict['node_voltages'][node_name] = solution_vector[index]
+
+        # Currents through voltage sources (V, E, H types)
+        results_dict['vsource_currents'] = {}
+        for v_name, index in vsource_to_current_idx.items():
+            # MNA current variable is defined as leaving the positive terminal of the source.
+            results_dict['vsource_currents'][v_name] = solution_vector[index]
+
+        # Calculate and add currents through resistors
+        results_dict['element_currents'] = {}
+        # Calculate element power
+        results_dict['element_power'] = {}
+
+        for el_name, element_obj in instance.elements.items():
+            n1_name, n2_name = element_obj.nets[0], element_obj.nets[1]
+            v1 = results_dict['node_voltages'].get(n1_name, 0.0) if n1_name != '0' else 0.0
+            v2 = results_dict['node_voltages'].get(n2_name, 0.0) if n2_name != '0' else 0.0
+            voltage_across_element = v1 - v2 # V(n1) - V(n2)
+
+            if isinstance(element_obj, Resistance):
+                R_val = element_obj.get_numerical_dc_value(param_values)
+                current = float('nan')
+                power = float('nan')
+                if R_val is not None and isinstance(R_val, (float, int)):
+                    if R_val == 0:
+                        print(f"Warning: Resistor {el_name} has zero resistance. Current calculation via Ohm's law problematic.")
+                        # Current would be determined by rest of circuit; power could be zero if V1=V2, or infinite.
+                    else:
+                        current = voltage_across_element / R_val
+                        power = voltage_across_element * current # (V1-V2)^2 / R or I*(V1-V2)
+                else:
+                    print(f"Warning: Could not get valid numerical resistance for {el_name} for current/power. Value: {R_val}.")
+                results_dict['element_currents'][el_name] = current
+                results_dict['element_power'][el_name] = power
+
+            elif type(element_obj) is VoltageSource or \
+                 isinstance(element_obj, VoltageControlledVoltageSource) or \
+                 isinstance(element_obj, CurrentControlledVoltageSource):
+                # V, E, H elements. Their current is in 'vsource_currents'.
+                # Power absorbed: V_element * (-I_variable) because I_variable is current leaving n+
+                # V_element is (v1-v2)
+                if el_name in results_dict['vsource_currents']:
+                    source_current_var_value = results_dict['vsource_currents'][el_name]
+                    power = voltage_across_element * (-source_current_var_value)
+                    results_dict['element_power'][el_name] = power
+                else:
+                    results_dict['element_power'][el_name] = float('nan')
+
+
+            elif type(element_obj) is CurrentSource: # Independent Current Source
+                i_val = element_obj.get_numerical_dc_value(param_values)
+                if i_val is not None and isinstance(i_val, (float, int)):
+                    # Current i_val flows from n1 to n2. Power absorbed = (v1-v2)*i_val
+                    results_dict['element_currents'][el_name] = i_val # Its own current
+                    results_dict['element_power'][el_name] = voltage_across_element * i_val
+                else:
+                    results_dict['element_currents'][el_name] = float('nan')
+                    results_dict['element_power'][el_name] = float('nan')
+
+            elif isinstance(element_obj, VoltageControlledCurrentSource): # VCCS (G element)
+                gm = element_obj.get_numerical_dc_value(param_values)
+                nc_plus_name, nc_minus_name = element_obj.nets[2], element_obj.nets[3]
+                v_nc_plus = results_dict['node_voltages'].get(nc_plus_name, 0.0) if nc_plus_name != '0' else 0.0
+                v_nc_minus = results_dict['node_voltages'].get(nc_minus_name, 0.0) if nc_minus_name != '0' else 0.0
+                controlled_current = float('nan')
+                if gm is not None and isinstance(gm, (float, int)):
+                    controlled_current = gm * (v_nc_plus - v_nc_minus)
+                    results_dict['element_currents'][el_name] = controlled_current
+                    # This current flows from n1 to n2. Power absorbed = (v1-v2)*controlled_current
+                    results_dict['element_power'][el_name] = voltage_across_element * controlled_current
+                else:
+                    results_dict['element_currents'][el_name] = float('nan')
+                    results_dict['element_power'][el_name] = float('nan')
+
+            elif isinstance(element_obj, CurrentControlledCurrentSource): # CCCS (F element)
+                gain = element_obj.get_numerical_dc_value(param_values)
+                controlling_vsource_name = element_obj.names[1]
+                controlled_current = float('nan')
+                if gain is not None and isinstance(gain, (float, int)):
+                    if controlling_vsource_name in results_dict['vsource_currents']:
+                        I_control = results_dict['vsource_currents'][controlling_vsource_name]
+                        controlled_current = gain * I_control
+                        results_dict['element_currents'][el_name] = controlled_current
+                        # This current flows from n1 to n2. Power absorbed = (v1-v2)*controlled_current
+                        results_dict['element_power'][el_name] = voltage_across_element * controlled_current
+                    else:
+                        print(f"Warning: Controlling source {controlling_vsource_name} for CCCS {el_name} not found in vsource_currents.")
+                        results_dict['element_currents'][el_name] = float('nan')
+                        results_dict['element_power'][el_name] = float('nan')
+                else:
+                    results_dict['element_currents'][el_name] = float('nan')
+                    results_dict['element_power'][el_name] = float('nan')
+
+        return results_dict
+    except np.linalg.LinAlgError:
+        print(f"Error: Singular matrix (determinant is zero). Circuit may be ill-defined for DC analysis (e.g., floating parts, redundant voltage sources, or unstable). A_matrix:\n{A_num}\nz_vector:\n{z_num}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred during numerical solution: {e}")
+        return None
+
+# Imports for the new solve_dc_numerically logic
+from . import scs_parser as scs_parser_module # Alias to avoid conflict if Parser class is named same
+from . import scs_circuit
+from . import scs_instance_hier
+from . import scs_errors # For catching specific parsing/instancing errors
+
+def solve_dc_numerically(netlist_path: str, param_values: dict):
+    """
+    Parses a netlist file, builds the circuit instance, and solves for its DC
+    operating point using numerical Modified Nodal Analysis (MNA).
+
+    This function serves as a high-level entry point for performing DC numerical
+    simulation on a circuit defined in a SPICE-like netlist file. It handles
+    the parsing of the netlist, creation of the circuit hierarchy, and then
+    calls the MNA solver.
+
+    Args:
+        netlist_path (str): The file path to the SPICE-like netlist file.
+        param_values (dict): A dictionary mapping Sympy symbols (representing circuit
+                             parameters like resistances, source values, gains, etc.)
+                             to their specific numerical values for this simulation.
+                             These values will be used to populate the MNA matrices.
+                             Example: `{sympy.symbols('R1_val'): 1000.0, sympy.symbols('V_in'): 5.0}`
+                             If parameters in the netlist are defined using expressions that
+                             depend on other circuit variables (e.g., node voltages), the
+                             internal symbolic solver (`instance.solve()`) is called first
+                             to resolve these before numerical substitution.
+
+    Returns:
+        dict or None: A dictionary containing the simulation results if successful,
+                      otherwise None. The dictionary has the following structure:
+                      - 'node_voltages' (dict): Maps node names (str) to their DC voltage (float).
+                        e.g., `{'N1': 5.0, 'N2': 2.5}`
+                      - 'vsource_currents' (dict): Maps names of voltage sources (V, E, H types)
+                        (str) to the DC current flowing through them (float). The current
+                        is defined as flowing from the positive to the negative terminal
+                        of the source. The MNA variable represents current leaving the positive terminal.
+                        e.g., `{'V1': -0.005}` (meaning 5mA flows into V1's positive terminal)
+                      - 'element_currents' (dict): Maps all element names (str) to the DC
+                        current flowing through them (float). For resistors, current flows
+                        from the first listed node to the second. For current sources, it's
+                        their defined current. For controlled sources, it's their calculated
+                        output current.
+                        e.g., `{'R1': 0.005, 'I1': 0.001}`
+                      - 'element_power' (dict): Maps all element names (str) to the DC power
+                        absorbed by that element (float). Positive for absorbed power,
+                        negative for supplied power.
+                        e.g., `{'R1': 0.025, 'V1': -0.05}` (V1 supplies 50mW)
+                      - Individual node voltages are also available directly as top-level keys
+                        for convenience, e.g., `"V(N1)": 5.0`.
+
+                      Returns None if parsing, instance creation, or the numerical
+                      solution fails (e.g., file not found, parser error, singular matrix).
+                      Error messages are printed to the console in such cases.
+    """
+    top_circuit_obj = None
+    top_instance = None
+    try:
+        # 1. Create a TopCircuit object
+        top_circuit_obj = scs_circuit.TopCircuit()
+
+        # 2. Parse the netlist file into this TopCircuit object
+        # parse_file returns the circuit object back if successful, or None on error
+        parsed_circuit = scs_parser_module.parse_file(netlist_path, top_circuit_obj)
+        if not parsed_circuit: # Check if parse_file indicated an error by returning None
+            # parse_file itself should log specific errors via logging module
+            print(f"Error: Failed to parse the netlist file: {netlist_path}. Check logs for details.")
+            return None
+        top_circuit_obj = parsed_circuit # Keep the populated circuit object
+
+        # 3. Create the top-level instance from the parsed circuit definition
+        # make_top_instance might take param_valsd for default top-level params,
+        # not the runtime param_values used for substitution in MNA.
+        # If param_values are meant for top-level default overrides, this needs clarification.
+        # Assuming param_values are for MNA substitution.
+        # make_top_instance uses the circuit's own parametersd by default.
+        top_instance = scs_instance_hier.make_top_instance(top_circuit_obj)
+        if not top_instance:
+            print("Error: Failed to create top-level instance from parsed circuit.")
+            return None
+
+        # Perform basic checks (optional here, but good practice from SymbolicCircuitProblemSolver)
+        # These might raise scs_errors.ScsInstanceError
+        if not top_instance.check_path_to_gnd():
+             print("Circuit check failed: No path to ground for some nets. Cannot solve.")
+             return None # Or raise error
+        if not top_instance.check_voltage_loop():
+             print("Circuit check failed: Voltage loop detected. Cannot solve with basic MNA.")
+             return None # Or raise error
+
+        # Note: The original SymbolicCircuitProblemSolver also calls top_instance.solve() (symbolic) here.
+        # This step is crucial as it populates internal symbolic solution structures within the instance
+        # that element_obj.get_numerical_dc_value might rely on if parameters are expressions
+        # involving node voltages or other symbols solved by the symbolic part.
+        # For a purely numerical MNA from a fully defined netlist (no symbolic params to solve first),
+        # this might not be strictly needed if get_numerical_dc_value only uses .PARAM values.
+        # However, to be safe and align with how elements get their values (which might be symbolic
+        # expressions derived from the circuit's symbolic solution), we should call it.
+        top_instance.solve()
+
+
+    except FileNotFoundError:
+        print(f"Error: Netlist file not found at {netlist_path}")
+        return None
+    except scs_errors.ScsParserError as e:
+        print(f"Parser Error: {e}")
+        return None
+    except scs_errors.ScsInstanceError as e:
+        print(f"Instance Error: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred during parsing or instancing: {type(e).__name__} - {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+    # If all successful, call the instance solver
+    return solve_dc_numerically_from_instance(top_instance, param_values)
+
 if __name__ == '__main__':
     import os
     import sys
@@ -528,7 +835,7 @@ R1 N1 N2 1000
 R2 N2 0 1000
 .end
 """
-    test_netlist_divider_filename = "temp_test_divider.sp"
+    test_netlist_divider_filename = "_temp_numerical_divider.sp"
     try:
         with open(test_netlist_divider_filename, 'w') as f: f.write(test_netlist_divider_content)
         print(f"\n--- Test Case 1: Voltage Divider ---")
@@ -555,7 +862,7 @@ E_vcvs N_out 0 N_sense 0 2.0 ; V(N_out) = 2 * V(N_sense)
 R_load N_out 0 1000
 .end
 """
-    test_netlist_vcvs_filename = "temp_test_vcvs.sp"
+    test_netlist_vcvs_filename = "_temp_numerical_vcvs.sp"
     try:
         with open(test_netlist_vcvs_filename, 'w') as f: f.write(test_netlist_vcvs_content)
         print(f"\n--- Test Case 2: VCVS ---")
@@ -581,7 +888,7 @@ G_vccs N_out 0 N_ctrl 0 0.01 ; I(G_vccs) from N_out to 0 is 0.01 * V(N_ctrl)
 R_load N_out 0 100
 .end
 """
-    test_netlist_vccs_filename = "temp_test_vccs.sp"
+    test_netlist_vccs_filename = "_temp_numerical_vccs.sp"
     try:
         with open(test_netlist_vccs_filename, 'w') as f: f.write(test_netlist_vccs_content)
         print(f"\n--- Test Case 3: VCCS ---")
@@ -608,7 +915,7 @@ H_ccvs N_out 0 V_dummy 50
 R_load N_out 0 1000
 .end
 """
-    test_netlist_ccvs_filename = "temp_test_ccvs.sp"
+    test_netlist_ccvs_filename = "_temp_numerical_ccvs.sp"
     try:
         with open(test_netlist_ccvs_filename, 'w') as f: f.write(test_netlist_ccvs_content)
         print(f"\n--- Test Case 4: CCVS ---")
@@ -648,7 +955,7 @@ F_cccs N_out 0 V_dummy 10 ; I(F_cccs) from N_out to 0 is 10 * I(V_dummy)
 R_load N_out 0 1000
 .end
 """
-    test_netlist_cccs_filename = "temp_test_cccs.sp"
+    test_netlist_cccs_filename = "_temp_numerical_cccs.sp"
     try:
         with open(test_netlist_cccs_filename, 'w') as f: f.write(test_netlist_cccs_content)
         print(f"\n--- Test Case 5: CCCS ---")

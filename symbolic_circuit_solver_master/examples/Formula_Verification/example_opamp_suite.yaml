@@ -1,0 +1,33 @@
+suite_name: Op-Amp Example Verification Suite
+netlist_path: ../example_circuits/opamp_circuit.sp
+tasks:
+  - task_name: V_N_out (OpAmp)
+    type: node_voltage
+    target: N_out
+    num_sets: 3
+    symbol_specific_random_ranges:
+      R1_sym: [600.0, 1200.0]
+      Aol_sym: [15000.0, 45000.0]
+      # V_source_sym will use global default random range
+  - task_name: I_R1 (OpAmp)
+    type: element_current
+    target: R1
+    num_sets: 3
+  - task_name: I_Vin (OpAmp)
+    type: vsource_current
+    target: Vin
+    num_sets: 3
+  - task_name: P_R2 (OpAmp)
+    type: element_power
+    target: R2
+    num_sets: 3
+  - task_name: P_E_opamp (OpAmp)
+    type: element_power
+    target: E_opamp
+    num_sets: 3
+    stop_on_first_mismatch: false
+  - task_name: Malformed Task Example (OpAmp) # To show error skipping
+    type: node_voltage
+    # Deliberately missing 'target'
+    task_name_typo: This task name is also slightly different for test
+    num_sets: 1
