@@ -4,9 +4,11 @@
 
 This project provides tools for symbolic circuit analysis, allowing users to understand circuit behavior in terms of symbolic parameters rather than purely numerical results (as in traditional SPICE simulations). This approach is particularly useful for deriving formulas, understanding parameter sensitivities, and solving for circuit component values given specific operational conditions.
 
-The project includes two main functionalities:
+The project includes [several key functionalities]:
 1.  An original symbolic circuit solver (`scs.py`) for general symbolic analysis of circuits defined in SPICE-like netlists.
-2.  A newer "Symbolic Problem Solver Tool" (`scs_symbolic_solver_tool.py`) designed to determine unknown symbolic parameters in a circuit when certain electrical conditions (voltages, currents, or power values) are specified.
+2.  A "Symbolic Problem Solver Tool" (`scs_symbolic_solver_tool.py`) designed to determine unknown symbolic parameters in a circuit when certain electrical conditions (voltages, currents, or power values) are specified.
+3.  An "Autonomous Formula Verification Framework" (`scs_verification.py`, `scs_numerical_solver.py`, `scs_utils.py`) for validating derived symbolic formulas against numerical simulations.
+4.  A "Generalized Symbolic Goal Seeking" feature (`scs_symbolic_goal_seeker.py`) to solve for a circuit parameter that achieves a specific symbolic target for an electrical quantity.
 
 ## Original Symbolic Solver (`scs.py`)
 
@@ -111,31 +113,78 @@ The `solve_h_bridge_problem.py` example demonstrates this:
 
 See the latter part of `examples/H_Bridge/solve_h_bridge_problem.py` for a detailed implementation.
 
-## Examples
+## Generalized Symbolic Circuit Analysis and Custom Scenarios
 
-The `examples/` directory contains scripts demonstrating various functionalities:
+This powerful feature, primarily accessed via the `solve_circuit_for_unknowns` function (found in `scs_symbolic_goal_seeker.py`), allows users to work directly with the fundamental system of circuit equations (MNA - Modified Nodal Analysis). It offers a flexible way to define custom analysis scenarios by specifying which parameters are known and which circuit variables or parameters should be solved for symbolically.
 
-*   **`examples/H_Bridge/`**:
-    *   `h_bridge.sp`: An H-Bridge circuit with `R3_sym` and `U_sym` as unknowns.
-    *   `solve_h_bridge_problem.py`: Uses `SymbolicCircuitProblemSolver` to find `R3_sym` and `U_sym` given V(N3) and I(R4). Then calculates and prints V, I, P for all resistors.
-*   **`examples/Power_Condition_Test/`**:
-    *   `power_test.sp`: A simple series resistor circuit with `R2_sym` as an unknown.
-    *   `solve_power_test.py`: Solves for `R2_sym` given a power condition on R1. Tests the power condition handling in the solver tool.
-*   **`examples/Formula_Derivation/`**:
-    *   `voltage_divider.sp`: A voltage divider with all components (`US_sym`, `R1_sym`, `R2_sym`) defined symbolically.
-    *   `derive_divider_formulas.py`: Demonstrates deriving general symbolic formulas for V_out, I(R1), I(R2), P(R1), P(R2) using the base solver components.
-    *   `solve_underdetermined_divider.py`: Shows how the `SymbolicCircuitProblemSolver` handles an underdetermined system (1 equation, 3 unknowns for the voltage divider), typically returning a parametric solution.
-*   **`examples/Formula_Verification/`**: Contains examples related to the Autonomous Formula Verification framework (see dedicated section below).
+### `solve_circuit_for_unknowns()`
 
-## Running Examples
+**Function Signature (from `scs_symbolic_goal_seeker.py`):**
+```python
+solve_circuit_for_unknowns(
+    netlist_path: str = None,
+    known_values_map_str_keys: typing.Dict[str, typing.Union[str, float, int]] = None,
+    unknowns_to_solve_for_str: typing.List[str] = None,
+    top_instance_optional: scs_instance_hier.Instance = None
+) -> typing.List[typing.Dict[sympy.Symbol, sympy.Expr]]
+```
 
-1.  Ensure all dependencies are installed.
-2.  Navigate to the `/app` directory (the parent of `symbolic_circuit_solver_master`).
-3.  Run the example scripts using `python3`, e.g.:
-    ```bash
-    python3 symbolic_circuit_solver_master/examples/H_Bridge/solve_h_bridge_problem.py
+**Parameters:**
+
+*   `netlist_path` (str): Path to the SPICE-like netlist file. Required if `top_instance_optional` is not provided.
+*   `known_values_map_str_keys` (dict): A dictionary where:
+    *   Keys are **strings** matching the symbolic parameter names used in the SPICE netlist's `.PARAM` directives (e.g., the `R1_sym` in `.PARAM R1_actual_value = R1_sym`).
+    *   Values can be numerical constants (e.g., `100`, `1.5`) or other Sympy symbols (allowing results to be expressed in terms of these "scenario symbols").
+    *   Example: `{'R_load_sym': 50, 'Gain_param_sym': sympy.symbols('A_scenario_val')}`
+*   `unknowns_to_solve_for_str` (list[str]): A list of strings specifying the variables for which symbolic solutions are desired. These strings can name:
+    *   Node voltages: e.g., `"V_N1"` for the voltage at node `N1` (relative to ground). The underlying symbol is typically `V_N1`.
+    *   Element currents: e.g., `"I_R1"` for the current through element `R1`. The underlying symbol is typically `I_R1`. The direction is as defined by the element's node order in the netlist (N+ to N-).
+    *   SPICE parameters: e.g., `"R1_sym"` if this parameter is *not* specified in `known_values_map_str_keys` and you wish to solve for it.
+    *   If this list is empty or `None`, the function attempts to solve for all defined node voltages, all element currents, and any SPICE parameters not present in `known_values_map_str_keys`.
+*   `top_instance_optional` (scs_instance_hier.Instance, optional): An optional, pre-parsed circuit instance. If provided, `netlist_path` might be bypassed for parsing if the instance is already suitable.
+
+**Returns:**
+
+*   (list[dict]): A list of solution dictionaries. Each dictionary maps Sympy `Symbol` objects (representing the solved unknowns) to their resulting Sympy expressions. An empty list indicates no solution or an error.
+
+**Key Concept:**
+
+The `solve_circuit_for_unknowns` function (via `generate_circuit_equations`) first constructs the circuit's complete MNA system:
+1.  Kirchhoff's Current Law (KCL) equations for each non-ground node.
+2.  Constitutive V-I relationships for every circuit element.
+
+Users define a specific analysis scenario by providing the `known_values_map_str_keys`. This map tells the solver which symbolic parameters from the netlist (e.g., `R1_s`, `Vin_s`) should be substituted with fixed numerical values or with other user-defined scenario symbols. Any parameters from the netlist not included in this map are typically treated as further unknowns in the system. The `unknowns_to_solve_for_str` list then tells `sympy.solve()` which variables' symbolic expressions are of interest. For complex results (e.g., solving for an input voltage based on an output condition), it's often necessary to include all intermediate circuit variables (other node voltages and element currents) in `unknowns_to_solve_for_str` to allow Sympy to fully resolve the desired primary unknowns in terms of the scenario symbols.
+
+### Example: H-Bridge Symbolic Analysis for Input Voltage
+
+The script `examples/Symbolic_Goal_Seeking/h_bridge_analysis.py` uses this approach to determine the required input voltage (`Vin_s`) for an H-bridge to achieve a specific target voltage across its load, given symbolic values for switch and load resistances.
+
+**(a) Netlist Setup:**
+The H-bridge is defined with symbolic parameters for its input voltage source (`Vin_s`) and all resistors: `Rul_s` (upper-left), `Rll_s` (lower-left), `Rur_s` (upper-right), `Rlr_s` (lower-right), and `Rload_s` (the load). Each is declared like `.PARAM Rul_s = Rul_s`.
+
+**(b) Scenario and Goal:**
+*   **Knowns**: The switch resistances are mapped to scenario symbols representing their state (e.g., `sR_on` for low resistance, `sR_off` for high resistance). The load resistance `Rload_s` is mapped to a scenario symbol `sRload`.
+    ```python
+    # sR_on, sR_off, sRload are pre-defined sympy.symbols
+    knowns_map = {
+        'Rul_s': sR_on,    # Upper-left is ON
+        'Rll_s': sR_off,   # Lower-left is OFF
+        'Rur_s': sR_off,   # Upper-right is OFF
+        'Rlr_s': sR_on,    # Lower-right is ON
+        'Rload_s': sRload
+    }
     ```
-    The scripts contain `sys.path` manipulation to correctly locate the `symbolic_circuit_solver_master` package from the `/app` directory.
+    (Note: `sVload_target` is not in `known_values_map_str_keys` because it's part of an added constraint equation, not a direct substitution for a `.PARAM`).
+
+*   **Constraint**: An additional equation is added to the MNA system: the voltage across the load (`V_Na - V_Nb`) must equal another scenario symbol, `sVload_target`.
+    `sympy.Eq(V_Na_symbol - V_Nb_symbol, sVload_target)`
+*   **Goal**: Solve for the circuit's main input voltage parameter `Vin_s` (the value of the `Vin` source element) and the current `I_Vin` (current through the `Vin` source element) in terms of `sR_on`, `sR_off`, `sRload`, and `sVload_target`.
+
+**(c) Solving:**
+*   `unknowns_list` includes `'Vin_s'`, `'I_Vin'`, and all other node voltage symbols (e.g., `'V_N_supply'`, `'V_Na'`, `'V_Nb'`) and element current symbols (e.g., `'I_Rul'`, `'I_Rload'`) from the circuit.
+*   `solve_from_equations` (called by `solve_circuit_for_unknowns`) then finds expressions for `Vin_s` and `I_Vin`.
+
+This example yields complex symbolic formulas for `Vin_s` and `I_Vin` which can then be numerically evaluated for specific resistance and target voltage values.
 
 ## Autonomous Formula Verification Framework
 
@@ -319,6 +368,172 @@ The script provides detailed output during its run:
         *   A list of these tasks, including their name, type, target, and a brief reason for failure (e.g., number of mismatches or an error message like "Failed to derive symbolic expression").
 
 This comprehensive output helps quickly identify whether the symbolic formulas are consistent with numerical simulations and pinpoint discrepancies at the level of specific parameter sets if mismatches occur.
+
+## Generalized Symbolic Goal Seeking (`scs_symbolic_goal_seeker.py`)
+
+### Overview
+
+This feature allows you to solve for a single unknown symbolic parameter within a circuit such that a specific electrical quantity (like a node voltage, element current, or power) achieves a desired target value. The target value can itself be a symbolic expression or a numerical constant. This is useful for design tasks where you need to determine a component value or source setting to meet a particular performance goal.
+
+For example, you can ask: "What value of `R_load_sym` makes `V(N_out)` equal to `Vin_sym / 2`?" or "What `Vin_sym` is needed for `P(R_load)` to be `1.0W`?"
+
+The core of this functionality is provided by the `solve_for_symbolic_unknown` function in the `scs_symbolic_goal_seeker.py` module.
+
+### How to Use `solve_for_symbolic_unknown`
+
+The main function is:
+```python
+solve_for_symbolic_unknown(
+    netlist_path: str,
+    unknown_param_name_str: str,
+    target_quantity_str: str,
+    target_value_expr_str: str
+) -> typing.List[sympy.Expr]
+```
+
+**Parameters:**
+
+*   `netlist_path` (str):
+    Path to the SPICE-like netlist file describing the circuit.
+*   `unknown_param_name_str` (str):
+    The string name of the symbolic parameter within the netlist that you want to solve for. This parameter must be defined symbolically in your netlist (see Netlist Requirements below). Example: `"R_load_sym"`.
+*   `target_quantity_str` (str):
+    A string that specifies the electrical quantity you want to control. Supported formats:
+    *   `"V(node_name)"`: Voltage at `node_name` relative to ground (e.g., `"V(N_out)"`).
+    *   `"V(node1,node2)"`: Voltage between `node1` and `node2` (e.g., `"V(N1,N2)"`).
+    *   `"I(element_name)"`: Current through the specified `element_name` (e.g., `"I(R1)"`). The direction is as defined by the element's node order in the netlist.
+    *   `"P(element_name)"`: Power absorbed by the specified `element_name` (e.g., `"P(R1)"`).
+*   `target_value_expr_str` (str):
+    A string representing the desired value for the `target_quantity_str`. This can be:
+    *   A numerical constant (e.g., `"1.5"` for 1.5 Volts).
+    *   A symbolic expression involving other symbolic parameters defined in the netlist (e.g., `"Vin_val / 2"`, `"my_const * R2_sym"`).
+
+**Netlist Requirements for Symbolic Parameters:**
+
+For the goal seeker to work correctly, any parameter intended to be an unknown (like `unknown_param_name_str`) or any parameter used in `target_value_expr_str` that should be treated as a symbol rather than a fixed numerical value from a `.PARAM` line, must be explicitly declared as a symbolic entity in the SPICE netlist. This is typically done in two ways:
+
+1.  **Parameter Declaration**: Use a `.PARAM` statement to declare the symbol itself. The convention is `.PARAM MySymbol = MySymbol`.
+    ```spice
+    .PARAM R_unknown = R_unknown  ; Declares R_unknown as a symbol
+    .PARAM V_in_val = V_in_val    ; Declares V_in_val as a symbol (if used in target_value_expr_str)
+    .PARAM R_fixed = 1k         ; A fixed value, not treated as a variable by sympy by default
+    ```
+2.  **Component Value Assignment**: Assign the symbolic parameter to the component's value.
+    ```spice
+    R_load N_out 0 R_unknown  ; R_load's value is the symbolic R_unknown
+    V_source N_in 0 V_in_val  ; V_source's value is the symbolic V_in_val
+    ```
+    (Note: The solver prefers component values without curly braces, e.g., `R_load N_out 0 R_unknown` instead of `{R_unknown}`).
+
+**Return Value:**
+
+The function returns a `typing.List[sympy.Expr]`. This list contains the Sympy expressions that are the solutions for the `unknown_param_name_str`.
+*   If one or more solutions are found, they will be in the list.
+*   If the equation is contradictory (no solution), the list will be empty.
+*   If the unknown parameter does not appear in the formed equation (e.g., the target quantity is independent of the unknown), `sympy.solve` might return `[]` (if the equation holds true for all values of the unknown) or specific conditions. The function aims to return a list of expressions for the unknown.
+*   In case of errors during parsing, instance creation, symbolic solution of the circuit, or processing the target quantity, an empty list is returned and error messages are printed to the console.
+
+### Usage Example
+
+Consider a simple voltage divider where we want to find the input voltage `Vin_unknown` such that the output voltage `V(N_out)` is equal to a symbolic target `V_target_level`.
+
+**1. SPICE Netlist (`_temp_goal_seek_vdiv.sp` - example path):**
+```spice
+* Voltage Divider for Goal Seeking Vin_unknown
+.PARAM Vin_unknown = Vin_unknown  ; The unknown we are solving for
+.PARAM R1_val = 1k                ; Fixed value for R1
+.PARAM R2_val = 1k                ; Fixed value for R2
+.PARAM V_target_level = V_target_level ; Symbolic target level
+
+VS Vin_node 0 Vin_unknown
+R1 Vin_node N_out R1_val
+R2 N_out 0 R2_val
+.end
+```
+
+**2. Python Script:**
+```python
+import sympy
+import os
+import sys
+
+# Adjust sys.path to import from the parent package (assuming specific project structure)
+# This setup is typical for running scripts within the 'examples' directory.
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root_examples = os.path.dirname(script_dir) # e.g., examples/
+project_root_package = os.path.dirname(project_root_examples) # e.g., symbolic_circuit_solver_master/
+main_project_root = os.path.dirname(project_root_package) # Parent of symbolic_circuit_solver_master/
+if main_project_root not in sys.path:
+    sys.path.insert(0, main_project_root)
+
+from symbolic_circuit_solver_master.scs_symbolic_goal_seeker import solve_for_symbolic_unknown
+
+# Create a temporary netlist file for this example script
+netlist_content = """
+* Voltage Divider for Goal Seeking Vin_unknown
+.PARAM Vin_unknown = Vin_unknown
+.PARAM R1_val = 1k
+.PARAM R2_val = 1k
+.PARAM V_target_level = V_target_level
+VS Vin_node 0 Vin_unknown
+R1 Vin_node N_out R1_val
+R2 N_out 0 R2_val
+.end
+"""
+temp_netlist_file = "_temp_goal_seek_vdiv.sp" # Created in the current working directory
+with open(temp_netlist_file, 'w') as f:
+    f.write(netlist_content)
+
+# Define parameters for goal seeking
+unknown_to_solve = 'Vin_unknown'
+target_quantity = 'V(N_out)'  # Equivalent to V(N_out,0)
+target_value_expression = 'V_target_level' # Target V_out is the symbolic V_target_level
+
+print(f"Attempting to solve for '{unknown_to_solve}' such that {target_quantity} = {target_value_expression}")
+
+solutions = solve_for_symbolic_unknown(
+    netlist_path=temp_netlist_file,
+    unknown_param_name_str=unknown_to_solve,
+    target_quantity_str=target_quantity,
+    target_value_expr_str=target_value_expression
+)
+
+if solutions:
+    print(f"Found solution(s) for {unknown_to_solve}:")
+    for sol_idx, sol_expr in enumerate(solutions):
+        print(f"  Solution {sol_idx + 1}: {sol_expr}")
+        # For this voltage divider, V(N_out) = Vin_unknown * R2_val / (R1_val + R2_val)
+        # If R1_val and R2_val are treated as symbols (e.g. .PARAM R1_val=R1_val),
+        # then Vin_unknown = V_target_level * (R1_val + R2_val) / R2_val
+        # If R1_val=1k, R2_val=1k are fixed numbers, then Vin_unknown = 2 * V_target_level.
+        # The current netlist example uses fixed 1k values, so the symbolic solver
+        # within scs_instance_hier will substitute these before solve_for_symbolic_unknown gets it.
+        # The actual expression derived by top_instance.v() will have these numerical values.
+
+        # Let's verify the expected form if R1_val and R2_val were symbolic.
+        # R1_s, R2_s, VT_s = sympy.symbols('R1_val R2_val V_target_level')
+        # expected_symbolic_form = VT_s * (R1_s + R2_s) / R2_s
+        # print(f"  Expected general symbolic form (if R1, R2 were symbols): {expected_symbolic_form}")
+        # If R1=1k, R2=1k, then expected is V_target_level * (1000 + 1000) / 1000 = 2 * V_target_level
+        V_target_level_sym = sympy.symbols('V_target_level')
+        expected_numerical_form = 2 * V_target_level_sym
+        print(f"  Expected form (with R1=1k, R2=1k): {expected_numerical_form}")
+        if sympy.simplify(sol_expr - expected_numerical_form) == 0:
+             print(f"  Solution {sol_idx+1} matches expected numerical form.")
+        else:
+             print(f"  Solution {sol_idx+1} does NOT match expected numerical form. Difference: {sympy.simplify(sol_expr - expected_numerical_form)}")
+
+
+else:
+    print(f"No solution found for {unknown_to_solve} or an error occurred.")
+
+# Cleanup
+if os.path.exists(temp_netlist_file):
+    os.remove(temp_netlist_file)
+```
+
+This example demonstrates how to set up the problem and call the function. The actual expression for `V(N_out)` would be derived by the internal symbolic solver, and then `sympy.solve` would be used to find `Vin_unknown`.
+Refer to the example script `examples/Symbolic_Goal_Seeking/voltage_divider_goal_seek.py` for a runnable demonstration.
 
 
 ## Dependencies

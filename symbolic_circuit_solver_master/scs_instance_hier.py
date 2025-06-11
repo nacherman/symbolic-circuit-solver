@@ -647,18 +647,39 @@ class Instance(object):
         hier_inst = instance.split('.')
         
         if len(hier_inst) == 1:
-            if hier_inst[0] in self.elements:
-                G_v,I = self.current_v(self.elements[hier_inst[0]],self.elements[hier_inst[0]].nets[0])
-                i = 0
-                for g in G_v:
-                    if g:
-                        I[0] -= g*self.v(self.nets[i])
-                    i += 1
-                #return sympy.factor(I[0],sympy.symbols('s'))
-                #return I[0].simplify()
-                return -I[0]
+            element_name = hier_inst[0]
+            if element_name in self.elements:
+                element_obj = self.elements[element_name]
+
+                # If the element is a CurrentSource, its current is its defined value.
+                # Conventionally, this value defines current flowing from N+ to N-.
+                if isinstance(element_obj, scs_elements.CurrentSource):
+                    return element_obj.values[0]
+
+                # For other elements, revert to the original calculation logic structure
+                # which was found to be correct for calculating current N+ to N-.
+                # G_v and I_list (as I[0] in original) are obtained from self.current_v,
+                # representing current flowing OUT of element_obj.nets[0].
+                G_v, I_val_list = self.current_v(element_obj, element_obj.nets[0])
+
+                # Original loop structure to calculate: I_const_part - sum(g_coeff * V_net)
+                # This sum represents current flowing OUT of nets[0] if I_const_part is KCL sum of fixed sources,
+                # and g_coeff*V_net are currents through conductances relative to V_net.
+                temp_I0 = I_val_list[0] # Start with the constant part of current
+                for net_idx, g_coeff_val in enumerate(G_v):
+                    # G_v is dimensioned based on self.nets.
+                    # self.nets[net_idx] gives the name of the net for g_coeff_val.
+                    # self.v(self.nets[net_idx]) gives its voltage.
+                    if g_coeff_val != 0:
+                        temp_I0 -= g_coeff_val * self.v(self.nets[net_idx])
+
+                # temp_I0 is now I_constant_part - sum(G_v[j]*V_j for relevant j).
+                # This was the value of I[0] after the loop in the original code.
+                # The original code returned -I[0].
+                # This means current THROUGH the element (N+ to N-) is -temp_I0.
+                return -temp_I0
             else: 
-                raise scs_errors.ScsInstanceError("Can't find element %s in %s" % (hier_inst[0],self.name if self.name else "TOP INSTANCE"))
+                raise scs_errors.ScsInstanceError("Can't find element %s in %s" % (element_name,self.name if self.name else "TOP INSTANCE"))
         else:
             subinstance = self
             for subname in hier_inst[:-1]:

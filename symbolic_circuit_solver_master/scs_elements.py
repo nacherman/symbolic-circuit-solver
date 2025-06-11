@@ -45,6 +45,24 @@ class VoltageSource(Element):
         vvalue = evaluate_param_func('_v', {'_v': vvalue_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(vvalue, sympy.abc._clash)]
 
+    @staticmethod
+    def get_symbolic_equations(V_n_plus: sympy.Symbol, V_n_minus: sympy.Symbol, V_source_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for an independent voltage source.
+
+        The equation defines the voltage difference between the positive and
+        negative terminals of the source.
+
+        Args:
+            V_n_plus (sympy.Symbol): Symbol for the voltage at the positive node.
+            V_n_minus (sympy.Symbol): Symbol for the voltage at the negative node.
+            V_source_sym (sympy.Symbol): Symbol for the voltage value of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq: V_n_plus - V_n_minus = V_source_sym.
+        """
+        return [sympy.Eq(V_n_plus - V_n_minus, V_source_sym)]
+
     def get_numerical_dc_value(self, param_values: dict) -> float | object:
         expr = self.values[0]
         try:
@@ -62,31 +80,40 @@ class VoltageControlledVoltageSource(VoltageSource): # Inherits get_numerical_dc
         if len(actual_nets) != 4:
             raise scs_errors.ScsElementError("Net list is incorrect for VoltageControlledVoltageSource. Expected 4 control/output nets.")
 
-        # Call Element.__init__ directly.
-        # self.names = [name] (standard for single element)
-        # self.nets = [n+, n-, nc+, nc-] for stamping
         Element.__init__(self, [name], actual_nets, [], evaluate_param_func=evaluate_param_func)
 
-        if evaluate_param_func is None: # This check is somewhat redundant if Element.__init__ stores it.
+        if evaluate_param_func is None:
             raise ValueError("evaluate_param_func must be provided to VCVS constructor")
 
         gain_expresion = element.paramsl[-1]
         gain_value = evaluate_param_func('_gain', {'_gain': gain_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(gain_value, sympy.abc._clash)]
+
+    @staticmethod
+    def get_symbolic_equations(V_out_plus: sympy.Symbol, V_out_minus: sympy.Symbol,
+                               V_in_plus: sympy.Symbol, V_in_minus: sympy.Symbol,
+                               gain_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for a Voltage-Controlled Voltage Source (VCVS).
+
+        Equation: V_out_plus - V_out_minus = gain_sym * (V_in_plus - V_in_minus)
+
+        Args:
+            V_out_plus (sympy.Symbol): Symbol for the output positive node voltage.
+            V_out_minus (sympy.Symbol): Symbol for the output negative node voltage.
+            V_in_plus (sympy.Symbol): Symbol for the input positive control node voltage.
+            V_in_minus (sympy.Symbol): Symbol for the input negative control node voltage.
+            gain_sym (sympy.Symbol): Symbol for the voltage gain of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq representing the VCVS behavior.
+        """
+        return [sympy.Eq(V_out_plus - V_out_minus, gain_sym * (V_in_plus - V_in_minus))]
     # get_numerical_dc_value is inherited from VoltageSource
 
 class CurrentControlledVoltageSource(VoltageSource):
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
-        # Super init sets up names and nets based on VoltageSource structure.
-        # For CCVS, nets are output nets, controlling element name is separate.
         output_nets = element.paramsl[:-2]
-        # Create a temporary structure for super's understanding of 'element' if needed, or override after.
-        # The super().__init__ for VoltageSource will use element.paramsl[:-1] for nets.
-        # This is tricky. Let's adjust how super is called or what it expects, or set names/nets manually.
-        # Original VoltageSource init: self.nets = element.paramsl[:-1]
-        # element.paramsl for CCVS: [n_out+, n_out-, Vcontrol_name, value_expr]
-        
-        # Call Element.__init__ directly to set names/nets correctly for CCVS structure
         Element.__init__(self, [name, element.paramsl[-2]], output_nets, [], evaluate_param_func=evaluate_param_func)
 
         if evaluate_param_func is None:
@@ -94,6 +121,25 @@ class CurrentControlledVoltageSource(VoltageSource):
         r_expresion = element.paramsl[-1]
         r_value = evaluate_param_func('_r', {'_r': r_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(r_value, sympy.abc._clash)]
+
+    @staticmethod
+    def get_symbolic_equations(V_out_plus: sympy.Symbol, V_out_minus: sympy.Symbol,
+                               I_control_sym: sympy.Symbol, r_trans_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for a Current-Controlled Voltage Source (CCVS).
+
+        Equation: V_out_plus - V_out_minus = r_trans_sym * I_control_sym
+
+        Args:
+            V_out_plus (sympy.Symbol): Symbol for the output positive node voltage.
+            V_out_minus (sympy.Symbol): Symbol for the output negative node voltage.
+            I_control_sym (sympy.Symbol): Symbol for the controlling current.
+            r_trans_sym (sympy.Symbol): Symbol for the transresistance of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq representing the CCVS behavior.
+        """
+        return [sympy.Eq(V_out_plus - V_out_minus, r_trans_sym * I_control_sym)]
     # get_numerical_dc_value is inherited
 
 class CurrentSource(Element):
@@ -112,6 +158,23 @@ class CurrentSource(Element):
         ivalue = evaluate_param_func('_i', {'_i': ivalue_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(ivalue, sympy.abc._clash)]
 
+    @staticmethod
+    def get_symbolic_equations(I_element: sympy.Symbol, I_source_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for an independent current source.
+
+        The equation defines that the current through the element is equal
+        to the source's specified current value.
+
+        Args:
+            I_element (sympy.Symbol): Symbol for the current flowing through the source.
+            I_source_sym (sympy.Symbol): Symbol for the current value of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq: I_element = I_source_sym.
+        """
+        return [sympy.Eq(I_element, I_source_sym)]
+
     def get_numerical_dc_value(self, param_values: dict) -> float | object:
         expr = self.values[0]
         try:
@@ -123,15 +186,10 @@ class CurrentSource(Element):
 
 class VoltageControlledCurrentSource(CurrentSource): # Inherits get_numerical_dc_value from CurrentSource
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
-        # VCCS specific net extraction: n+, n-, nc+, nc-
-        # element.paramsl for VCCS: [n_plus, n_minus, n_control_plus, n_control_minus, transconductance_expr]
         actual_nets = element.paramsl[:-1]
         if len(actual_nets) != 4:
             raise scs_errors.ScsElementError("Net list is incorrect for VoltageControlledCurrentSource. Expected 4 control/output nets.")
 
-        # Call Element.__init__ directly.
-        # self.names = [name]
-        # self.nets should contain all 4 nets for MNA stamping access: n+, n-, nc+, nc-
         Element.__init__(self, [name], actual_nets, [], evaluate_param_func=evaluate_param_func)
 
         if evaluate_param_func is None:
@@ -140,29 +198,59 @@ class VoltageControlledCurrentSource(CurrentSource): # Inherits get_numerical_dc
         gm_expresion = element.paramsl[-1]
         gm_value = evaluate_param_func('_gm', {'_gm': gm_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(gm_value, sympy.abc._clash)]
+
+    @staticmethod
+    def get_symbolic_equations(I_element: sympy.Symbol, V_in_plus: sympy.Symbol,
+                               V_in_minus: sympy.Symbol, gm_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for a Voltage-Controlled Current Source (VCCS).
+
+        Equation: I_element = gm_sym * (V_in_plus - V_in_minus)
+
+        Args:
+            I_element (sympy.Symbol): Symbol for the output current of the source.
+            V_in_plus (sympy.Symbol): Symbol for the input positive control node voltage.
+            V_in_minus (sympy.Symbol): Symbol for the input negative control node voltage.
+            gm_sym (sympy.Symbol): Symbol for the transconductance of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq representing the VCCS behavior.
+        """
+        return [sympy.Eq(I_element, gm_sym * (V_in_plus - V_in_minus))]
     # get_numerical_dc_value is inherited from CurrentSource
 
 class CurrentControlledCurrentSource(CurrentSource):
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func):
-        # Similar to CCVS, need to handle names/nets carefully.
-        # element.paramsl for CCCS: [n_out+, n_out-, Vcontrol_name, value_expr]
         output_nets = element.paramsl[:-2]
         Element.__init__(self, [name, element.paramsl[-2]], output_nets, [], evaluate_param_func=evaluate_param_func)
-        
+
         if evaluate_param_func is None:
             raise ValueError("evaluate_param_func must be provided to CCCS constructor")
         ai_expresion = element.paramsl[-1] # Current gain
         ai_value = evaluate_param_func('_ai', {'_ai': ai_expresion}, evaluated_paramsd, parent)
         self.values = [sympy.sympify(ai_value, sympy.abc._clash)]
+
+    @staticmethod
+    def get_symbolic_equations(I_element: sympy.Symbol, I_control_sym: sympy.Symbol,
+                               gain_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for a Current-Controlled Current Source (CCCS).
+
+        Equation: I_element = gain_sym * I_control_sym
+
+        Args:
+            I_element (sympy.Symbol): Symbol for the output current of the source.
+            I_control_sym (sympy.Symbol): Symbol for the controlling current.
+            gain_sym (sympy.Symbol): Symbol for the current gain of the source.
+
+        Returns:
+            list: A list containing one Sympy Eq representing the CCCS behavior.
+        """
+        return [sympy.Eq(I_element, gain_sym * I_control_sym)]
     # get_numerical_dc_value is inherited
 
 class PassiveElement(Element):
     def __init__(self, name, element, evaluated_paramsd, parent, evaluate_param_func=None):
-        # Children (Resistance etc.) will call super() which eventually calls Element.__init__.
-        # They will set their own names, nets, values after their specific logic.
-        # This __init__ needs to ensure evaluate_param_func is passed up.
-        # The _names, _nets, _values passed to super() here are placeholders if PassiveElement
-        # were instantiated directly, but concrete children will define these more meaningfully.
         _names = [name] if name else []
         _nets = []
         if hasattr(element, 'paramsl'):
@@ -178,7 +266,7 @@ class Resistance(PassiveElement):
         if 'r' in element.paramsd: rvalue_expresion = element.paramsd['r']
         elif 'R' in element.paramsd: rvalue_expresion = element.paramsd['R']
         else: rvalue_expresion = element.paramsl[-1]
-        
+
         current_nets = element.paramsl[:-1]
         if len(current_nets) != 2:
             raise scs_errors.ScsElementError("Port list is too long or too short for Resistance.")
@@ -187,6 +275,23 @@ class Resistance(PassiveElement):
         self.names = [name]
         self.nets = current_nets
         self.values = [sympy.sympify(rvalue, sympy.abc._clash)]
+
+    @staticmethod
+    def get_symbolic_equations(V_n_plus: sympy.Symbol, V_n_minus: sympy.Symbol, I_element: sympy.Symbol, R_sym: sympy.Symbol) -> list:
+        """
+        Returns the symbolic equation for a resistor based on Ohm's Law.
+
+        Args:
+            V_n_plus (sympy.Symbol): Symbol for the voltage at the positive node.
+            V_n_minus (sympy.Symbol): Symbol for the voltage at the negative node.
+            I_element (sympy.Symbol): Symbol for the current flowing through the resistor
+                                     (from V_n_plus to V_n_minus).
+            R_sym (sympy.Symbol): Symbol for the resistance value.
+
+        Returns:
+            list: A list containing one Sympy Eq: V_n_plus - V_n_minus = I_element * R_sym.
+        """
+        return [sympy.Eq(V_n_plus - V_n_minus, I_element * R_sym)]
 
     def conductance(self):
         return 1.0 / self.values[0]
