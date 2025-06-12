@@ -1,69 +1,60 @@
-# TODO List for Symbolic Circuit Solver Project
+# TODO List for Symbolic Circuit Solver Project (Post H-Bridge Symbolic Analysis)
 
 ## I. Core Solver (`symbolic_solver.py`) Enhancements:
 
-1.  **Advanced Inconsistency/Redundancy Diagnostics:**
-    *   Provide user-friendly feedback about conflicting equations/constraints.
-    *   Inform user about redundant equations in consistent over-determined systems.
-    *   [Stretch Goal] Explore symbolic matrix rank analysis for formal system property determination.
-2.  **Improved "Unknowns" Handling:**
-    *   Investigate more intelligent deduction of intermediate variables if only primary unknowns are specified.
-    *   More explicit handling/messaging when user tries to solve for a known (substituted) variable.
-3.  **Advanced Simplification of Solutions:**
-    *   Allow user-specified simplification strategies (simplify, expand, factor, collect, cse).
-    *   Optionally apply assumptions (real, positive) during simplification.
-4.  **Units Handling:**
-    *   [Major Feature] Integrate a units library (e.g., `pint`) for unit tracking, conversion, and consistency checks.
+1.  **Advanced System Analysis & User Feedback (Addressing "Schwachstellen"):**
+    *   **Overconstrained System Analysis:** When `sympy.solve` yields an empty set for `unknowns_to_derive` from a system of equations that seems solvable, or when a numerical substitution into a derived formula yields physically unexpected results (e.g., negative resistance when a positive one was expected based on a different solution path):
+        *   Attempt to identify minimal conflicting subsets of `known_specifications` or dominant relationships that led to the specific outcome.
+        *   Provide more detailed feedback to the user about *why* a specific expected solution (like a positive R3 in the H-bridge under all constraints) couldn't be found, or why the derived formula leads to a particular numerical result under certain inputs. This involves explaining which constraints or parameter values are driving the outcome.
+    *   **Sensitivity/Dependency Analysis:** For derived symbolic formulas, provide an option to analyze the sensitivity of an unknown to changes in specific input parameters. Clearly show which input symbols an `unknown_to_derive` actually depends on in its final simplified symbolic form.
+2.  **Guided Symbolic Solution Paths & "Engineering Intuition" (Major Research Area):**
+    *   Explore techniques to allow the solver to try sequential solution strategies (e.g., solve for intermediate variables first using a subset of equations, then use those results to solve for final unknowns), emulating human problem-solving for complex circuits.
+    *   Allow users to provide hints, assumptions, or a desired order of variable elimination to guide the symbolic solution process if a global simultaneous solve is problematic or doesn't yield the desired form of solution (e.g., for the H-Bridge, how to arrive at R3=56.18 Ohms symbolically).
+3.  **Improved "Unknowns_to_derive" Handling:**
+    *   Further refine how the solver determines the full set of variables to solve for internally if the user only specifies a few primary `unknowns_to_derive`.
+    *   Ensure very clear reporting if a user asks to "derive" a symbol that is explicitly defined as a fixed known in `known_specifications`.
+4.  **Advanced Simplification & Canonical Forms:**
+    *   Allow users to specify target forms or apply more advanced simplification routines (e.g., `cse`, `collect`, domain-specific simplifications for circuit equations).
+    *   Investigate methods for transforming derived symbolic expressions into a "canonical" or most insightful form for circuit analysis.
+5.  **Units Handling:**
+    *   [Major Feature] Integrate a units library (e.g., `pint`) for unit tracking, conversion, and consistency checks throughout symbolic calculations and in results.
 
 ## II. Component Definitions (`symbolic_components.py`) Extensions:
 
 1.  **Refined AC Power Calculations:**
-    *   Add attributes/methods for true Complex Power (S = V*I_conj), Average Real Power (P), Reactive Power (Q), Apparent Power (|S|).
+    *   Add attributes/methods for true Complex Power (S = V*I_conj or 0.5*Vpeak*Ipeak_conj), Average Real Power (P), Reactive Power (Q), Apparent Power (|S|).
 2.  **Non-Linear Components:**
     *   Basic Diode model (ideal or exponential).
 3.  **Mutual Inductors / Transformers (K-element).**
 4.  **Improved Current Control Specification for CCVS/CCCS:**
-    *   Allow passing the controlling component *instance* (not just name) for direct access to its `I_comp`.
+    *   Allow passing the controlling component *instance* for direct access to its `I_comp`, making the coupling more explicit and robust.
 
 ## III. SPICE Parser (`spice_parser.py`) Enhancements:
 
 1.  **Subcircuit (`.SUBCKT`) Support.**
-2.  **`.MODEL` Statement Support** (for diodes, transistors, etc.).
-3.  **Advanced Analysis Command Parsing:**
-    *   `.DC` sweeps (parameter sweeps).
-    *   `.AC` sweeps (LIN, DEC, OCT with frequency ranges).
-    *   [Stretch Goal] `.TRAN` (for time-domain).
-    *   Extract parameters from these to guide the solver.
-4.  **Error Reporting:** More detailed parsing error messages with line numbers.
-5.  **Case Insensitivity:** Ensure fully SPICE-compliant case insensitivity.
-6.  **Global Nodes** (e.g., `!GLOBAL GND VCC`).
-7.  **Expression Values:** Allow component values to be expressions in terms of parameters (e.g., `R1 N1 N2 {R_val * 2}`).
+2.  **`.MODEL` Statement Support.**
+3.  **Advanced Analysis Command Parsing & Integration:**
+    *   `.DC` sweeps, `.AC` sweeps (LIN, DEC, OCT with frequency ranges).
+    *   Extract parameters from these to automatically set up `known_specifications` and `unknowns_to_derive` for parametric sweeps or frequency response symbolic formulas.
+4.  **Error Reporting:** More detailed parsing error messages with line numbers and context.
+5.  **Expression Values in Netlist:** Allow component values to be expressions in terms of parameters defined via `.PARAM` statements (e.g., `R1 N1 N2 {R_val * 2}`).
 
 ## IV. Utilities (`utils.py`) & User Interface:
 
-1.  **Graphical Node Map:**
+1.  **Symbolic Formula Presentation & Exploration:**
+    *   For very complex symbolic formulas, explore options for interactive display, step-by-step expansion, or allowing users to request the formula in terms of specific intermediate variables.
+    *   Integrate `cse` (common subexpression elimination) into `format_symbolic_expression` or `print_solutions` as an option for more compact display of large formulas.
+2.  **Graphical Node Map:**
     *   Optionally generate graphical output using `graphviz` or `matplotlib`.
-2.  **Plotting for AC Analysis:**
-    *   Utilities for Bode plots (magnitude/phase of transfer functions vs. frequency).
-3.  **Expression Count Utility (Formalized):**
-    *   Callable function `get_system_counts(equations, symbols)` returning dict/string.
-4.  **GUI:** (Very Long-Term) Graphical circuit entry and results visualization.
+3.  **Plotting for AC Analysis:**
+    *   Utilities for Bode plots from symbolic transfer functions.
 
 ## V. General Solver & Codebase:
 
-1.  **Comprehensive Regression Test Suite:**
-    *   Dedicated test files for different modules and features.
-    *   Automated testing for preventing regressions.
-2.  **Documentation:**
-    *   Expand inline docstrings.
-    *   [Stretch Goal] Generate project documentation (Sphinx, MkDocs).
-3.  **Performance for Large Symbolic Systems:**
-    *   Investigate strategies for managing complexity and solution time for larger circuits.
-4.  **Handling of Disconnected Circuit Portions:**
-    *   Detect and correctly inform about or handle (e.g. solve independently if possible) circuits with multiple disconnected subgraphs.
+1.  **Comprehensive Regression Test Suite:** Expand with more complex DC and AC circuits, including those that test the limits of symbolic derivation and known edge cases.
+2.  **Documentation:** Expand inline docstrings; consider generating project documentation.
+3.  **Performance Profiling & Optimization:** For very large symbolic systems, profile and identify bottlenecks.
 
-## VI. Schwachstellen (Weak Points) Observed During H-Bridge Task:
+## VI. Specific H-Bridge Problem (R3 ≈ 56.18 Ohms Path):
 
-1.  **Formula Complexity:** Fully symbolic formulas (e.g., R3 in terms of all R's, U, and constraint targets) can become extremely large and difficult for direct human interpretation. Outputting in terms of key intermediate solved variables (like node voltages) is often more practical, as currently done. Strategies for hierarchical display or user-guided expansion could be explored.
-2.  **User Guidance on Overconstrained Systems:** While the solver can detect inconsistencies or find mathematical solutions like negative resistance, it doesn't currently guide the user on *which specific set* of inputs/constraints are causing the issue in an overconstrained numerical problem. This requires more advanced sensitivity or dependency analysis.
-3.  **Simplification Limits:** `sympy.simplify()` is powerful but not a silver bullet. Some complex expressions may not reduce to the most intuitive "simplest" form without specific guidance or assumptions.
+1.  **Dedicated Test Case:** Create a specific test in `symbolic_tester.py` that precisely follows the multi-step manual calculation logic (or an equivalent set of prioritized constraints) to derive the symbolic formula for R3 that leads to ~56.18 Ohms. This will serve as a benchmark for "guided" or "heuristic" solving capabilities if implemented. The current global solver correctly solves the system as simultaneously constrained, highlighting inconsistencies for that specific R3 value under all conditions at once.

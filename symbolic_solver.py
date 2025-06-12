@@ -4,25 +4,36 @@ from symbolic_components import BaseComponent, Resistor, Inductor, Capacitor, Vo
 from utils import print_solutions
 
 
-def solve_circuit(components, unknown_symbols_to_solve_for, known_substitutions=None, additional_equations=None, ground_node='GND'):
-    if not components and not additional_equations:
-        raise ValueError("Components list or additional_equations must be provided.")
+MAX_PREPROCESSING_PASSES = 15
 
-    current_equations = []
+def fully_substitute(expr, subs_dict, max_depth=MAX_PREPROCESSING_PASSES):
+    if not hasattr(expr, 'subs') or not hasattr(expr, 'free_symbols'): return expr
+    current_expr = expr
+    for _ in range(max_depth):
+        prev_expr = current_expr
+        symbols_in_current_expr = current_expr.free_symbols
+        relevant_subs = {s: subs_dict[s] for s in symbols_in_current_expr if s in subs_dict}
+        if not relevant_subs: break
+        current_expr = current_expr.subs(relevant_subs)
+        if current_expr == prev_expr: break
+    return current_expr
+
+def solve_circuit(components, unknown_symbols_to_derive, known_specifications, ground_node='GND'):
+    if not components and not known_specifications:
+        # print("Warning: Both components list and known_specifications are empty. Nothing to solve.")
+        return [{}] if not unknown_symbols_to_derive else [{s:s for s in unknown_symbols_to_derive}]
+
+    user_requested_symbols_set = {sp.sympify(s) for s in (unknown_symbols_to_derive or [])}
+    all_equations = []
     all_nodes = set()
     node_voltage_symbols = {}
-
     parameter_symbols = {omega_sym_global}
-    user_requested_symbols_set = {sp.sympify(s) for s in (unknown_symbols_to_solve_for or [])}
-
 
     if components:
         for comp in components:
-            if not isinstance(comp, BaseComponent):
-                raise TypeError(f"Item {comp} in components list is not a BaseComponent.")
-            current_equations.extend(comp.expressions)
-            all_nodes.add(comp.node1)
-            all_nodes.add(comp.node2)
+            if not isinstance(comp, BaseComponent): raise TypeError(f"Item {comp} not BaseComponent.")
+            all_equations.extend(comp.expressions)
+            all_nodes.add(comp.node1); all_nodes.add(comp.node2)
             if isinstance(comp, Resistor): parameter_symbols.add(comp.R_val)
             elif isinstance(comp, Inductor): parameter_symbols.add(comp.L_val)
             elif isinstance(comp, Capacitor): parameter_symbols.add(comp.C_val)
@@ -33,224 +44,176 @@ def solve_circuit(components, unknown_symbols_to_solve_for, known_substitutions=
             elif isinstance(comp, CCVS): parameter_symbols.add(comp.transresistance)
             elif isinstance(comp, CCCS): parameter_symbols.add(comp.gain)
 
-        ground_subs_dict = {}
+        ground_subs_dict_for_comp_eqs = {}
         if ground_node in all_nodes :
             for node_name in all_nodes:
+                node_sym = sp.Symbol(f"V_{node_name}")
+                node_voltage_symbols[node_name] = node_sym
                 if node_name == ground_node:
-                    node_voltage_symbols[node_name] = sp.Integer(0)
-                    ground_sym_in_comp = sp.Symbol(f"V_{ground_node}")
-                    if ground_sym_in_comp != sp.Integer(0):
-                         ground_subs_dict[ground_sym_in_comp] = sp.Integer(0)
-                else:
-                    node_voltage_symbols[node_name] = sp.Symbol(f"V_{node_name}")
-            if ground_subs_dict:
-                current_equations = [eq.subs(ground_subs_dict) for eq in current_equations]
+                    if node_sym != sp.Integer(0): ground_subs_dict_for_comp_eqs[node_sym] = sp.Integer(0)
+            if ground_subs_dict_for_comp_eqs:
+                all_equations = [eq.subs(ground_subs_dict_for_comp_eqs) for eq in all_equations]
         else:
-            for node_name in all_nodes:
-                 node_voltage_symbols[node_name] = sp.Symbol(f"V_{node_name}")
+            for node_name in all_nodes: node_voltage_symbols[node_name] = sp.Symbol(f"V_{node_name}")
 
         kcl_equations = []
-        nodes_for_kcl = all_nodes
-        if ground_node in all_nodes:
-            nodes_for_kcl = set(n for n in all_nodes if n != ground_node)
+        nodes_for_kcl = all_nodes - {ground_node} if ground_node in all_nodes else all_nodes
         for node_name in nodes_for_kcl:
             currents_into_node = sp.Integer(0)
             for comp in components:
                 if comp.node1 == node_name: currents_into_node -= comp.I_comp
                 elif comp.node2 == node_name: currents_into_node += comp.I_comp
-            if currents_into_node != 0:
-                kcl_equations.append(currents_into_node)
-        current_equations.extend(kcl_equations)
+            if currents_into_node != 0 : kcl_equations.append(currents_into_node)
+        all_equations.extend(kcl_equations)
 
-    master_subs = {sp.sympify(s): sp.sympify(v) for s, v in (known_substitutions or {}).items()}
-    current_equations = [eq.subs(master_subs) for eq in current_equations]
-    if additional_equations:
-        current_equations.extend([eq.subs(master_subs) for eq in additional_equations])
+    for spec in (known_specifications or []):
+        if isinstance(spec, sp.Equality): all_equations.append(spec.lhs - spec.rhs)
+        elif isinstance(spec, sp.Expr): all_equations.append(spec)
+        else: raise TypeError(f"Known specification '{spec}' must be Sympy Eq or Expr.")
 
-    MAX_PASSES = 15
-    for _pass_num in range(MAX_PASSES):
+    master_subs = {}
+    if ground_node in node_voltage_symbols and node_voltage_symbols[ground_node] != 0:
+         master_subs[node_voltage_symbols[ground_node]] = sp.Integer(0)
+
+    current_equations = [eq.subs(master_subs) for eq in all_equations]
+    current_equations = [eq for eq in current_equations if eq != True and not (eq.is_number and eq == 0)]
+
+    for _pass_num in range(MAX_PREPROCESSING_PASSES):
         new_substitutions_found_in_pass = False
-        next_round_equations = []
-        equations_to_process_this_pass = list(current_equations)
+        equations_for_next_pass = []
+        temp_current_equations = list(current_equations)
         current_equations = []
-        eq_idx = 0
-        while eq_idx < len(equations_to_process_this_pass):
-            eq = equations_to_process_this_pass[eq_idx]
-
+        for eq_idx, eq in enumerate(temp_current_equations):
             simplified_eq_check = eq.simplify() if hasattr(eq, 'simplify') else eq
             if simplified_eq_check == True or simplified_eq_check == sp.true or \
                (hasattr(simplified_eq_check, 'is_number') and simplified_eq_check.is_number and simplified_eq_check == 0) :
-                eq_idx += 1; continue
+                continue
             if simplified_eq_check == False or simplified_eq_check == sp.false or \
                (hasattr(simplified_eq_check, 'is_number') and simplified_eq_check.is_number and simplified_eq_check != 0) :
-                print(f"DEBUG: Equation evaluates to {simplified_eq_check}, system likely inconsistent (Pass {_pass_num + 1}). Original eq: {sp.pretty(eq)}")
+                print(f"DEBUG: Eq evaluates to {simplified_eq_check}, system inconsistent (Pass {_pass_num + 1}). Orig: {sp.pretty(eq)}")
                 return []
-
-            substituted_this_eq_for_a_symbol = False
-            symbols_in_eq = sorted(list(eq.free_symbols), key=str)
+            substituted_this_eq = False
+            symbols_in_eq = sorted(list(eq.free_symbols - set(master_subs.keys())), key=str)
             for symbol in symbols_in_eq:
-                is_parameter_explicitly_known = symbol in (known_substitutions or {})
-
-                if symbol in master_subs and not is_parameter_explicitly_known:
+                is_explicitly_known = symbol in (known_specifications or {}) # This check is not quite right, known_specifications is list of Eq.
+                                                                           # We need to check if symbol was on LHS of an sp.Eq in known_specifications.
+                                                                           # For now, rely on parameter_symbols and user_requested_symbols_set.
+                if symbol in parameter_symbols and symbol not in master_subs and symbol not in user_requested_symbols_set:
                     continue
-                # MODIFIED Parameter Protection: Do not solve for a parameter symbol UNLESS it's explicitly requested as an unknown
-                if symbol in parameter_symbols and not is_parameter_explicitly_known and symbol not in user_requested_symbols_set:
-                    continue
-
                 try:
                     sol = sp.solve(eq, symbol, dict=False)
                     if isinstance(sol, list) and len(sol) == 1:
                         expr_val = sol[0]
                         if symbol in expr_val.free_symbols: continue
-
-                        # print(f"  Preprocessing (Pass {_pass_num+1}): From {sp.pretty(eq)}=0, derived {symbol}={sp.pretty(expr_val)}") # DEBUG
-
                         current_substitution = {symbol: expr_val}
                         master_subs[symbol] = expr_val
-                        new_substitutions_found_in_pass = True
-                        substituted_this_eq_for_a_symbol = True
-
-                        next_round_equations = [neq.subs(current_substitution).simplify() for neq in next_round_equations]
-                        for i in range(eq_idx + 1, len(equations_to_process_this_pass)):
-                            equations_to_process_this_pass[i] = equations_to_process_this_pass[i].subs(current_substitution).simplify()
+                        new_substitutions_found_in_pass = True; substituted_this_eq = True
+                        equations_for_next_pass = [neq.subs(current_substitution).simplify() for neq in equations_for_next_pass]
+                        for i in range(eq_idx + 1, len(temp_current_equations)):
+                            temp_current_equations[i] = temp_current_equations[i].subs(current_substitution).simplify()
                         break
                 except Exception: pass
-
-            if not substituted_this_eq_for_a_symbol: next_round_equations.append(eq)
-            eq_idx +=1
-
-        current_equations = next_round_equations
+            if not substituted_this_eq: equations_for_next_pass.append(eq)
+        current_equations = equations_for_next_pass
         if not new_substitutions_found_in_pass : break
+        if _pass_num == MAX_PREPROCESSING_PASSES -1: print("Warning: Max substitution passes reached.")
 
     processed_equations = [eq for eq in current_equations if not (eq == True or eq == sp.true or (hasattr(eq, 'is_number') and eq.is_number and eq == 0))]
     processed_equations = list(set(processed_equations))
 
-    symbols_to_solve = set()
-    # user_requested_symbols_set was created at the beginning
-    for s_usr_sym in user_requested_symbols_set:
-        if s_usr_sym not in master_subs: symbols_to_solve.add(s_usr_sym)
+    final_unknowns_list = [s for s in user_requested_symbols_set if s not in master_subs]
+    all_free_in_eqs = set()
+    for eq in processed_equations: all_free_in_eqs.update(eq.free_symbols)
+    for s in all_free_in_eqs:
+        if s not in master_subs and s not in final_unknowns_list: final_unknowns_list.append(s)
+    final_unknowns_list = sorted(final_unknowns_list, key=str)
 
-    if components:
-        for node, v_sym in node_voltage_symbols.items():
-            is_ground_node = (ground_node in all_nodes and node == ground_node)
-            if not is_ground_node and v_sym not in master_subs: symbols_to_solve.add(v_sym)
-        for comp in components:
-            for sym_attr_name in ['V_comp', 'I_comp', 'P_comp']:
-                 sym_attr = getattr(comp, sym_attr_name, None)
-                 if sym_attr and sym_attr not in master_subs: symbols_to_solve.add(sym_attr)
+    num_eq = len(processed_equations); num_solve_sym = len(final_unknowns_list)
+    print(f"\nDEBUG: Final system analysis before sympy.solve():")
+    print(f"DEBUG: Number of processed equations: {num_eq}")
+    print(f"DEBUG: Number of symbols for sympy.solve: {num_solve_sym} ({[s.name if hasattr(s,'name') else str(s) for s in final_unknowns_list]})")
+    if not processed_equations and not final_unknowns_list: print("DEBUG: System fully determined by substitutions.")
+    elif num_eq < num_solve_sym : print("DEBUG: System appears under-determined for sympy.solve.")
+    elif num_eq == num_solve_sym: print("DEBUG: System appears square for sympy.solve.")
+    elif num_eq > num_solve_sym : print("DEBUG: System appears over-determined for sympy.solve.")
 
-    all_free_symbols_in_equations = set()
-    for eq in processed_equations: all_free_symbols_in_equations.update(eq.free_symbols)
-    for s in all_free_symbols_in_equations:
-        if s not in master_subs: symbols_to_solve.add(s)
-
-    final_symbols_to_solve_list = sorted(list(symbols_to_solve), key=lambda s: str(s))
-
-    master_subs_print = { (s.name if hasattr(s,'name') else str(s)) : v for s,v in master_subs.items()}
-    print(f"DEBUG: Master substitutions made: {master_subs_print}")
-    print(f"DEBUG: Equations to solve ({len(processed_equations)}):")
-    for i, eq_debug in enumerate(processed_equations): print(f"  Eq{i+1}: {sp.pretty(eq_debug)}")
-    print(f"DEBUG: Symbols to solve for ({len(final_symbols_to_solve_list)}): {[s.name if hasattr(s,'name') else str(s) for s in final_symbols_to_solve_list]}")
-
-    def fully_substitute(expr, subs_dict, max_depth=MAX_PASSES):
-        if not hasattr(expr, 'subs') or not hasattr(expr, 'free_symbols'): return expr
-        current_expr = expr
-        for _ in range(max_depth):
-            prev_expr = current_expr
-            symbols_in_current_expr = current_expr.free_symbols
-            relevant_subs = {s: subs_dict[s] for s in symbols_in_current_expr if s in subs_dict}
-            if not relevant_subs: break
-            current_expr = current_expr.subs(relevant_subs)
-            if current_expr == prev_expr: break
-        return current_expr
-
-    if not final_symbols_to_solve_list:
-        is_consistent_or_empty = True
-        if processed_equations:
-            # print("DEBUG: No symbols for sympy.solve, but equations remain. Checking consistency.")
-            for eq in processed_equations:
-                simplified_eq = fully_substitute(eq, master_subs).simplify()
-                if not (simplified_eq == True or simplified_eq == sp.true or simplified_eq == 0):
-                    is_consistent_or_empty = False; print(f"DEBUG: Inconsistency: {sp.pretty(eq)} -> {sp.pretty(simplified_eq)}")
-                    break
-        if is_consistent_or_empty:
-            # print("DEBUG: System consistent/empty. Solution from master_subs for requested unknowns.")
-            solution_dict = {}
-            for s_req in user_requested_symbols_set: # Use the set of original requested symbols
-                if s_req in master_subs: solution_dict[s_req] = fully_substitute(master_subs[s_req], master_subs)
-                else: solution_dict[s_req] = s_req
-            return [solution_dict] if solution_dict or not user_requested_symbols_set else [{}]
-        else: return []
+    # print(f"DEBUG Master subs before solve: {master_subs}") # Verbose debug
 
     sympy_solution_list = []
-    try:
-        if processed_equations or final_symbols_to_solve_list :
-            sympy_solution_list = sp.solve(processed_equations, final_symbols_to_solve_list, dict=True)
+    if final_unknowns_list or processed_equations:
+        try:
+            sympy_solution_list = sp.solve(processed_equations, final_unknowns_list, dict=True)
             if sympy_solution_list is None: sympy_solution_list = []
             if not isinstance(sympy_solution_list, list): sympy_solution_list = [sympy_solution_list]
-    except Exception as e:
-        print(f"Error during symbolic solution with sympy.solve: {e}"); return []
+        except Exception as e: print(f"Error during sympy.solve: {e}"); return []
 
-    final_solutions = []
-    if sympy_solution_list and (isinstance(sympy_solution_list[0], dict) and sympy_solution_list[0]):
-        for sol_dict_from_sympy in sympy_solution_list:
-            current_processed_solution_dict = {}
-            temp_master_subs_plus_sympy_sol = {**master_subs, **sol_dict_from_sympy}
-            for s_solved, val_expr in sol_dict_from_sympy.items():
-                current_processed_solution_dict[s_solved] = fully_substitute(val_expr, temp_master_subs_plus_sympy_sol)
-            for s_req in user_requested_symbols_set:
-                if s_req not in current_processed_solution_dict:
-                    if s_req in master_subs:
-                        current_processed_solution_dict[s_req] = fully_substitute(master_subs[s_req], temp_master_subs_plus_sympy_sol)
-                    elif s_req in final_symbols_to_solve_list:
-                         current_processed_solution_dict[s_req] = s_req
-            final_solutions.append(current_processed_solution_dict)
-        return final_solutions
-    else:
-        # print("DEBUG: sympy.solve() empty or [{}]. Constructing from master_subs.")
-        solution_dict_from_subs = {}
-        if user_requested_symbols_set:
+    output_solutions = []
+    if not sympy_solution_list: # sympy.solve() returned empty (e.g. [], or if it was [{}] it's handled by next block)
+        if not processed_equations: # System was fully determined by master_subs or is defined by free parameters
+            # print("DEBUG: Sympy.solve empty, no equations. Solution from master_subs or free params.") # DEBUG
+            solution_dict = {}
             for s_req in user_requested_symbols_set:
                 if s_req in master_subs:
-                    solution_dict_from_subs[s_req] = fully_substitute(master_subs[s_req], master_subs)
-                elif s_req in final_symbols_to_solve_list and not processed_equations:
-                    solution_dict_from_subs[s_req] = s_req
-        if solution_dict_from_subs or not user_requested_symbols_set :
-            final_solutions.append(solution_dict_from_subs if solution_dict_from_subs else {})
-    return final_solutions
+                    solution_dict[s_req] = fully_substitute(master_subs[s_req], master_subs)
+                elif s_req in final_unknowns_list: # Was a symbol for solve but no equations to constrain it
+                    solution_dict[s_req] = s_req # It's a free parameter
+            # Add dict if it's populated or if no specific unknowns were requested (indicates consistency)
+            if solution_dict or not user_requested_symbols_set: output_solutions.append(solution_dict)
+        # else: Equations remained but sympy.solve found no solution
+    elif sympy_solution_list and isinstance(sympy_solution_list[0], dict) and not sympy_solution_list[0]: # Got back [{}]
+        # print("DEBUG: sympy.solve() returned [{}]. System might be underdetermined for specific unknowns.") # DEBUG
+        # Treat as above: try to construct from master_subs for requested, or show free params
+        solution_dict = {}
+        for s_req in user_requested_symbols_set:
+            if s_req in master_subs:
+                solution_dict[s_req] = fully_substitute(master_subs[s_req], master_subs)
+            elif s_req in final_unknowns_list: # If it was a symbol passed to solve and no equations defined it
+                solution_dict[s_req] = s_req
+        if solution_dict or not user_requested_symbols_set: output_solutions.append(solution_dict)
+    else: # Sympy.solve returned actual solution(s)
+        for sol_dict_from_sympy in sympy_solution_list:
+            current_res_dict = {}
+            temp_master_subs_plus_sympy_sol = {**master_subs, **sol_dict_from_sympy}
+            for s_solved, val_expr in sol_dict_from_sympy.items():
+                current_res_dict[s_solved] = fully_substitute(val_expr, temp_master_subs_plus_sympy_sol)
+            for s_req in user_requested_symbols_set:
+                if s_req not in current_res_dict:
+                    if s_req in master_subs:
+                        current_res_dict[s_req] = fully_substitute(master_subs[s_req], temp_master_subs_plus_sympy_sol)
+                    elif s_req in final_unknowns_list:
+                         current_res_dict[s_req] = s_req
+            output_solutions.append(current_res_dict)
+
+    return output_solutions
 
 
 if __name__ == '__main__':
-    # (Omitting previous test cases for brevity, they should still pass)
-    print("Symbolic Solver (v9 - Corrected Parameter Protection for solving symbolic R3)")
+    print("Symbolic Solver (New Interface v3 - Parameter Protection & Solution Logic Refined)")
 
-    print("\n--- Test Case: Parameter Protection (R_s_param should remain symbolic) ---")
-    R_s_param = sp.Symbol('R_s_param')
-    V_s_applied_sym = sp.Symbol('V_s_applied')
-
-    vs_applied = VoltageSource("Vs_app", "np1", "GND", voltage_val_sym=V_s_applied_sym)
-    # Let Resistor auto-generate its current symbol I_Rp
-    res_param = Resistor("Rp", "np1", "GND", resistance_sym=R_s_param)
-
-    components_param = [vs_applied, res_param]
-    knowns_param = {V_s_applied_sym: 10}
-
-    # We want to find current through Rp (res_param.I_comp) and R_s_param itself
-    unknowns_param = [res_param.I_comp, R_s_param]
-
-    solution_param = solve_circuit(components_param, unknowns_param, knowns_param, additional_equations=None, ground_node='GND')
-    print_solutions(solution_param, "Solution for Parameter Protection Test")
-    # Expected: res_param.I_comp (I_Rp) = 10/R_s_param, R_s_param = R_s_param (remains symbol)
-
-    print("\n--- Test Case 1: Voltage Divider (V_n_mid_t1 should be 2) ---")
     V_in_sym_t1 = sp.Symbol('V_in_t1')
     R1_t1, R2_t1 = sp.symbols('R1_t1 R2_t1')
     vs_t1 = VoltageSource(name='Vs_t1', node1='n_in_t1', node2='GND', voltage_val_sym=V_in_sym_t1)
     r1_t1 = Resistor(name='R1_t1', node1='n_in_t1', node2='n_mid_t1', resistance_sym=R1_t1)
     r2_t1 = Resistor(name='R2_t1', node1='n_mid_t1', node2='GND', resistance_sym=R2_t1)
     components_t1 = [vs_t1, r1_t1, r2_t1]
-    knowns_t1 = {V_in_sym_t1: 10, R1_t1: 100}
-    constraints_t1 = [sp.Symbol('V_n_mid_t1') - 2]
+    # known_specifications define V_in_t1=10, R1_t1=100, and V_n_mid_t1=2
+    known_specs_t1 = [sp.Eq(V_in_sym_t1, 10), sp.Eq(R1_t1, 100), sp.Eq(sp.Symbol('V_n_mid_t1'), 2)]
     unknowns_t1 = [R2_t1, sp.Symbol('V_n_mid_t1')]
-    solution_t1 = solve_circuit(components_t1, unknowns_t1, knowns_t1, constraints_t1, 'GND')
+    print("\n--- Test Case 1: Voltage Divider (Solve R2, V_n_mid_t1) ---")
+    solution_t1 = solve_circuit(components_t1, unknowns_t1, known_specs_t1, ground_node='GND')
     print_solutions(solution_t1, "Solution T1 (Expected R2_t1=25, V_n_mid_t1=2)")
+
+    print("\n--- Test Case 2: Parameter Protection (R_s_param should remain symbolic) ---")
+    R_s_param_tc = sp.Symbol('R_s_param_tc')
+    V_s_applied_sym_tc = sp.Symbol('V_s_applied_tc')
+
+    vs_applied_tc = VoltageSource("Vs_app_tc", "np1_tc", "GND", voltage_val_sym=V_s_applied_sym_tc)
+    res_param_tc = Resistor("Rp_tc", "np1_tc", "GND", resistance_sym=R_s_param_tc)
+
+    components_param_tc = [vs_applied_tc, res_param_tc]
+    known_specs_param_tc = [sp.Eq(V_s_applied_sym_tc, 10)] # V_np1_tc will be V_s_applied_tc via Vs_app_tc component
+
+    unknowns_param_tc = [res_param_tc.I_comp, R_s_param_tc]
+
+    solution_param_tc = solve_circuit(components_param_tc, unknowns_param_tc, known_specs_param_tc, ground_node='GND')
+    print_solutions(solution_param_tc, "Solution for Parameter Protection Test (New Interface)")
