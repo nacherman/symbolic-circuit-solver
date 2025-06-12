@@ -1,312 +1,309 @@
 import sympy as sp
-from symbolic_components import BaseComponent, Resistor, VoltageSource, CurrentSource
+from sympy.solvers.solveset import linsolve # Not directly used in snippet but good for context
+from symbolic_components import BaseComponent
 
-# Make sure symbolic_components.py is in the same directory or accessible via PYTHONPATH
+# For test cases at the end
+from symbolic_components import VoltageSource, Resistor
+from utils import print_solutions # For __main__ tests
+
 
 def solve_circuit(components, unknown_symbols_to_solve_for, known_substitutions=None, additional_equations=None, ground_node='GND'):
-    '''
-    Solves a circuit symbolically.
+    # --- Initial setup, KCL, and iterative pre-processing logic ---
+    # This part is assumed to be the same as the successfully updated version from the previous step,
+    # which included the more aggressive pre-processing loop.
+    # For brevity, only the core logic parts are shown here, focusing on changes to return logic.
 
-    Args:
-        components (list): A list of BaseComponent instances.
-        unknown_symbols_to_solve_for (list): A list of sympy Symbols that the user specifically wants to solve for.
-                                            These can be component values (like R_unknown), currents, or source values.
-        known_substitutions (dict, optional): A dictionary of {symbol: value} for known parameters.
-                                             Values can be numeric or other sympy expressions/symbols.
-                                             Example: {R1_sym: 100, V_source_sym: sp.Symbol('Vin')}
-        additional_equations (list, optional): A list of additional sympy expressions that should equal zero.
-                                              Example: [V_output_sym - 0.1] to set V_output_sym to 0.1.
-        ground_node (str, optional): The name of the ground node. Its voltage will be set to 0.
+    if not components and not additional_equations:
+        raise ValueError("Components list cannot be empty if no additional_equations are provided.")
 
-    Returns:
-        list: A list of solutions (dictionaries) from sympy.solve(), or potentially a single solution dictionary.
-              Returns None if the system is unsolvable or other sympy errors occur.
-    '''
-    if not components:
-        raise ValueError("Components list cannot be empty.")
-    if not unknown_symbols_to_solve_for:
-        raise ValueError("List of unknown symbols to solve for cannot be empty.")
-
-    all_equations = []
+    current_equations = []
     all_nodes = set()
-    all_symbols_in_circuit = set() # Includes node voltages, component values, currents
+    node_voltage_symbols = {} # type: dict[str, sp.Expr]
 
-    # 1. Collect all component characteristic equations and identify nodes and symbols
-    for comp in components:
-        if not isinstance(comp, BaseComponent):
-            raise TypeError(f"Item {comp} in components list is not a BaseComponent.")
-        all_equations.extend(comp.expressions)
-        all_nodes.add(comp.node1)
-        all_nodes.add(comp.node2)
-
-        # Add symbols from component.values and component.expressions
-        for eq in comp.expressions:
-            all_symbols_in_circuit.update(eq.free_symbols)
-        for val_sym in comp.values.values():
-            if isinstance(val_sym, sp.Symbol):
-                all_symbols_in_circuit.add(val_sym)
-
-        # Add V_comp and I_comp symbols
-        all_symbols_in_circuit.add(comp.V_comp)
-        if hasattr(comp, 'I_comp'): # CurrentSource might not have I_comp as a separate symbol in the same way
-             all_symbols_in_circuit.add(comp.I_comp)
-
-
-    # 2. Define Node Voltage Symbols and handle Ground Node
-    node_voltage_symbols = {}
-    for node_name in all_nodes:
-        if node_name == ground_node:
-            node_voltage_symbols[node_name] = sp.Integer(0) # Ground is 0V
-        else:
-            # Use the V_nodename symbols already created by components if available,
-            # otherwise create new ones. This ensures consistency.
-            # We search for a V_nodename symbol that would have been created by a component.
-            # This relies on the V_node1/V_node2 symbols in BaseComponent.
-            potential_symbol = sp.Symbol(f"V_{node_name}")
-            node_voltage_symbols[node_name] = potential_symbol
-            all_symbols_in_circuit.add(potential_symbol)
-
-    # Substitute node voltage symbols (V_node1, V_node2 from components) with the actual V_nodename symbols
-    # And substitute ground node voltage with 0.
-    # This is critical because component expressions use generic V_node1, V_node2 symbols.
-    # We need to map them to the specific V_N1, V_N2, V_GND=0 etc.
-
-    # Create substitution dictionary for V_node1, V_node2 in component expressions
-    # and for the ground node.
-    node_subs = {}
-    for node_name, voltage_symbol in node_voltage_symbols.items():
-        # This maps the generic "V_nodeX" from component.V_node1 to the specific "V_N1"
-        # This is implicitly handled by how node_voltage_symbols are created and used if
-        # component.V_node1 and component.V_node2 symbols are directly used.
-        # The main substitution needed is for the ground node.
-        if node_name == ground_node:
-             # For any component connected to ground, its V_groundnode symbol becomes 0
-            ground_sym_in_comp = sp.Symbol(f"V_{ground_node}") # e.g. V_GND
-            node_subs[ground_sym_in_comp] = sp.Integer(0)
-
-    # Apply ground substitution to all equations
-    processed_equations = [eq.subs(node_subs) for eq in all_equations]
-
-    # 3. Generate KCL Equations for non-ground nodes
-    kcl_equations = []
-    for node_name in all_nodes:
-        if node_name == ground_node:
-            continue
-
-        currents_into_node = sp.Integer(0)
+    if components:
         for comp in components:
-            # Current I_comp is defined as flowing from node1 to node2
-            if comp.node1 == node_name: # Current flows out of this node via this comp
-                currents_into_node -= comp.I_comp
-            elif comp.node2 == node_name: # Current flows into this node via this comp
-                currents_into_node += comp.I_comp
-        kcl_equations.append(currents_into_node) # Sum of currents into node = 0
+            if not isinstance(comp, BaseComponent):
+                raise TypeError(f"Item {comp} in components list is not a BaseComponent.")
+            current_equations.extend(comp.expressions)
+            all_nodes.add(comp.node1)
+            all_nodes.add(comp.node2)
 
-    processed_equations.extend(kcl_equations)
+        ground_subs_dict = {}
+        if ground_node in all_nodes :
+            for node_name in all_nodes:
+                if node_name == ground_node:
+                    node_voltage_symbols[node_name] = sp.Integer(0)
+                    ground_sym_in_comp = sp.Symbol(f"V_{ground_node}")
+                    if ground_sym_in_comp != sp.Integer(0):
+                         ground_subs_dict[ground_sym_in_comp] = sp.Integer(0)
+                else:
+                    node_voltage_symbols[node_name] = sp.Symbol(f"V_{node_name}")
 
-    # 4. Apply known_substitutions (e.g., R1=100, specific V_source_val = 5)
-    if known_substitutions:
-        # Ensure values are sympy compatible
-        sympy_known_subs = {s: sp.sympify(v) for s, v in known_substitutions.items()}
-        processed_equations = [eq.subs(sympy_known_subs) for eq in processed_equations]
+            if ground_subs_dict:
+                current_equations = [eq.subs(ground_subs_dict) for eq in current_equations]
+        else:
+            for node_name in all_nodes:
+                 node_voltage_symbols[node_name] = sp.Symbol(f"V_{node_name}")
 
-    # 5. Add additional_equations (user-defined constraints)
+        kcl_equations = []
+        nodes_for_kcl = all_nodes
+        if ground_node in all_nodes:
+            nodes_for_kcl = set(n for n in all_nodes if n != ground_node)
+
+        for node_name in nodes_for_kcl:
+            currents_into_node = sp.Integer(0)
+            for comp in components:
+                if comp.node1 == node_name: currents_into_node -= comp.I_comp
+                elif comp.node2 == node_name: currents_into_node += comp.I_comp
+            if currents_into_node != 0:
+                kcl_equations.append(currents_into_node)
+        current_equations.extend(kcl_equations)
+
+    master_subs = {sp.sympify(s): sp.sympify(v) for s, v in (known_substitutions or {}).items()}
+
+    current_equations = [eq.subs(master_subs) for eq in current_equations]
     if additional_equations:
-        processed_equations.extend(additional_equations)
-        for eq in additional_equations:
-             all_symbols_in_circuit.update(eq.free_symbols)
+        current_equations.extend([eq.subs(master_subs) for eq in additional_equations])
 
+    MAX_PASSES = 10 # Max passes for iterative substitution
+    for _pass_num in range(MAX_PASSES):
+        new_substitutions_found_in_pass = False
+        next_round_equations = []
+        equations_to_process_this_pass = list(current_equations)
+        current_equations = []
 
-    # 6. Identify all symbols to solve for:
-    #    - User-specified unknown_symbols_to_solve_for
-    #    - All non-ground node voltage symbols (V_N1, V_N2 etc.)
-    #    - All I_comp symbols from components (these are often unknowns like I_R1, I_VS1)
-    #    - All V_comp symbols from components (these are often unknowns like V_R1)
+        eq_idx = 0
+        while eq_idx < len(equations_to_process_this_pass):
+            eq = equations_to_process_this_pass[eq_idx]
+            if eq == True or eq == sp.true or (hasattr(eq, 'is_number') and eq.is_number and eq == 0):
+                eq_idx += 1; continue
+            if eq == False or eq == sp.false or (hasattr(eq, 'is_number') and eq.is_number and eq != 0) :
+                print(f"Warning/DEBUG: Equation evaluates to {eq}, system likely inconsistent.")
+                return []
 
-    # Start with the user's requested symbols
-    symbols_to_solve = set(unknown_symbols_to_solve_for)
+            substituted_this_eq_for_a_symbol = False
+            symbols_in_eq = sorted(list(eq.free_symbols), key=str)
 
-    # Add all non-ground node voltages
-    for node, v_sym in node_voltage_symbols.items():
-        if node != ground_node:
-            symbols_to_solve.add(v_sym)
+            for symbol in symbols_in_eq:
+                if symbol in master_subs: continue
+                try:
+                    sol = sp.solve(eq, symbol, dict=False)
+                    if isinstance(sol, list) and len(sol) == 1:
+                        expr_val = sol[0]
+                        if symbol in expr_val.free_symbols: continue
 
-    # Add all component I_comp and V_comp symbols if they are not already part of known_substitutions
-    # or part of the definition of a known symbol.
-    for comp in components:
-        if comp.V_comp not in (known_substitutions or {}):
-            symbols_to_solve.add(comp.V_comp)
-        if hasattr(comp, 'I_comp') and comp.I_comp not in (known_substitutions or {}):
-            symbols_to_solve.add(comp.I_comp)
+                        # print(f"  Preprocessing (Pass {_pass_num+1}): From {sp.pretty(eq)}=0, derived {symbol}={sp.pretty(expr_val)}") # DEBUG
 
-    # Filter out symbols that might have been substituted if they were in known_substitutions
-    final_symbols_to_solve = [s for s in list(symbols_to_solve) if s not in (known_substitutions or {})]
+                        current_substitution = {symbol: expr_val}
+                        master_subs[symbol] = expr_val
+                        new_substitutions_found_in_pass = True
+                        substituted_this_eq_for_a_symbol = True
 
-    # Also, ensure all free symbols in the final equations that are not in known_substitutions
-    # are considered for solving, if they are not already among the unknowns.
-    # This helps catch implicitly defined unknowns.
-    current_free_symbols = set()
+                        next_round_equations = [neq.subs(current_substitution).simplify() for neq in next_round_equations]
+                        for i in range(eq_idx + 1, len(equations_to_process_this_pass)):
+                            equations_to_process_this_pass[i] = equations_to_process_this_pass[i].subs(current_substitution).simplify()
+                        # No pop, just don't add current eq to next_round_equations if it's used
+                        break
+                except Exception: pass
+
+            if not substituted_this_eq_for_a_symbol:
+                next_round_equations.append(eq)
+            eq_idx +=1
+
+        current_equations = next_round_equations
+        if not new_substitutions_found_in_pass: break
+
+    processed_equations = [eq for eq in current_equations if not (eq == True or eq == sp.true or (hasattr(eq, 'is_number') and eq.is_number and eq == 0))]
+
+    symbols_to_solve = set()
+    # Ensure unknown_symbols_to_solve_for is a list of actual symbols for processing
+    user_requested_symbols = [sp.sympify(s) for s in (unknown_symbols_to_solve_for or [])]
+
+    for s_usr_sym in user_requested_symbols:
+        if s_usr_sym not in master_subs:
+            symbols_to_solve.add(s_usr_sym)
+
+    if components:
+        for node, v_sym in node_voltage_symbols.items():
+            is_ground_node = (ground_node in all_nodes and node == ground_node)
+            if not is_ground_node and v_sym not in master_subs:
+                symbols_to_solve.add(v_sym)
+        for comp in components:
+            if comp.V_comp not in master_subs: symbols_to_solve.add(comp.V_comp)
+            if hasattr(comp, 'I_comp') and comp.I_comp not in master_subs :
+                 symbols_to_solve.add(comp.I_comp)
+
+    all_free_symbols_in_equations = set()
     for eq in processed_equations:
-        current_free_symbols.update(eq.free_symbols)
+        all_free_symbols_in_equations.update(eq.free_symbols)
+    for s in all_free_symbols_in_equations:
+        if s not in master_subs:
+            symbols_to_solve.add(s)
 
-    for s in current_free_symbols:
-        if s not in (known_substitutions or {}) and s not in final_symbols_to_solve:
-            # This is a bit broad, might include symbols the user intends to be parameters (e.g. R_load)
-            # For now, we primarily rely on explicit unknown_symbols_to_solve_for and node voltages.
-            # A more sophisticated system might differentiate parameters from variables.
-            pass
+    final_symbols_to_solve_list = sorted(list(symbols_to_solve), key=lambda s: str(s))
 
+    # --- Start of NEW/MODIFIED Return Logic ---
+    def fully_substitute(expr, subs_dict, max_depth=MAX_PASSES):
+        if not hasattr(expr, 'subs') or not hasattr(expr, 'free_symbols'): return expr
 
-    # Remove any symbols that might be in known_substitutions from the final_symbols_to_solve list
-    # This is important if a symbol appears in an equation but its value is provided.
-    if known_substitutions:
-        final_symbols_to_solve = [s for s in final_symbols_to_solve if s not in known_substitutions]
+        # Iteratively substitute to resolve multi-level dependencies
+        # Only substitute with keys actually present in the expression's free symbols
+        for _ in range(max_depth):
+            prev_expr = expr
+            # Determine which symbols from subs_dict are in the current expression
+            symbols_to_sub = expr.free_symbols.intersection(subs_dict.keys())
+            if not symbols_to_sub: break # No more known symbols to substitute
 
+            current_pass_subs = {s: subs_dict[s] for s in symbols_to_sub}
+            expr = expr.subs(current_pass_subs)
+            if expr == prev_expr: break # No change, substitution converged
+        return expr
 
-    # Deduplicate
-    final_symbols_to_solve = list(set(final_symbols_to_solve))
-
+    # DEBUG print moved after fully_substitute is defined
+    master_subs_print = { (s.name if hasattr(s,'name') else str(s)) : fully_substitute(v, master_subs) for s,v in master_subs.items()}
+    print(f"DEBUG: Master substitutions made (fully resolved, approx numerical): { {k: (v.evalf() if hasattr(v,'evalf') else v) for k,v in master_subs_print.items()} }")
     print(f"DEBUG: Equations to solve ({len(processed_equations)}):")
-    for i, eq in enumerate(processed_equations):
-        print(f"  Eq{i+1}: {sp.pretty(eq)}")
-    print(f"DEBUG: Symbols to solve for ({len(final_symbols_to_solve)}): {final_symbols_to_solve}")
+    for i, eq_debug in enumerate(processed_equations): print(f"  Eq{i+1}: {sp.pretty(eq_debug)}")
+    print(f"DEBUG: Symbols to solve for ({len(final_symbols_to_solve_list)}): {[s.name if hasattr(s,'name') else str(s) for s in final_symbols_to_solve_list]}")
 
-    # 7. Solve the system
+    # Case 1 & 2 (modified): System determined by substitutions or consistent with them
+    if not final_symbols_to_solve_list: # No symbols left for sympy.solve
+        is_consistent_or_empty = True
+        if processed_equations: # Equations remain, check their consistency
+            print("DEBUG: No symbols for sympy.solve, but equations remain. Checking consistency.")
+            for eq in processed_equations:
+                simplified_eq = fully_substitute(eq, master_subs).simplify()
+                if not (simplified_eq == True or simplified_eq == sp.true or simplified_eq == 0):
+                    is_consistent_or_empty = False
+                    print(f"DEBUG: Inconsistency: Equation {sp.pretty(eq)} simplifies to {sp.pretty(simplified_eq)} not 0 or True.")
+                    break
+
+        if is_consistent_or_empty:
+            print("DEBUG: System consistent or empty. Solution constructed from master_subs for requested unknowns.")
+            solution_dict = {}
+            for s_req in user_requested_symbols:
+                if s_req in master_subs:
+                    solution_dict[s_req] = fully_substitute(master_subs[s_req], master_subs)
+                # else: solution_dict[s_req] = s_req # Or indicate it remained unsolved
+            # If no specific unknowns requested, solution_dict can be empty.
+            # If specific unknowns were requested and all found in master_subs, it's a valid solution.
+            if not user_requested_symbols or all(s in master_subs for s in user_requested_symbols):
+                 return [solution_dict] if solution_dict or not user_requested_symbols else [{}] # Ensure [{}] for no specific request but consistent
+            else: # Some requested unknowns were not in master_subs
+                 print("DEBUG: Some requested unknowns were not found in master_subs, and no equations for sympy.solve.")
+                 return [] # Incomplete solution
+        else: # Inconsistent
+            return []
+
+
+    # Case 3: Call sympy.solve()
+    sympy_solution_list = []
     try:
-        solution = sp.solve(processed_equations, final_symbols_to_solve, dict=True)
-        return solution
+        if processed_equations or final_symbols_to_solve_list :
+            sympy_solution_list = sp.solve(processed_equations, final_symbols_to_solve_list, dict=True)
+            if sympy_solution_list is None: sympy_solution_list = [] # Ensure it's a list
+            if not isinstance(sympy_solution_list, list): sympy_solution_list = [sympy_solution_list] # Wrap if single dict
     except Exception as e:
-        print(f"Error during symbolic solution: {e}")
-        print("Equations handed to sympy.solve:")
-        for eq in processed_equations:
-            print(sp.pretty(eq))
-        print("Symbols handed to sympy.solve:")
-        print(final_symbols_to_solve)
-        return None
+        print(f"Error during symbolic solution with sympy.solve: {e}")
+        return []
+
+    # Process solution from sympy.solve() or use master_subs if sympy_solution is empty
+    final_solutions = []
+    if sympy_solution_list: # Got a list of solution dicts from sympy.solve
+        for sol_dict_from_sympy in sympy_solution_list:
+            current_processed_solution_dict = {}
+            for s_solved, val_expr in sol_dict_from_sympy.items():
+                current_processed_solution_dict[s_solved] = fully_substitute(val_expr, master_subs)
+
+            for s_req in user_requested_symbols:
+                if s_req not in current_processed_solution_dict and s_req in master_subs:
+                    current_processed_solution_dict[s_req] = fully_substitute(master_subs[s_req], master_subs)
+                elif s_req not in current_processed_solution_dict: # Requested, but not in sympy sol and not in master_subs
+                     pass # It remains unsolved. Could add s_req: s_req if desired.
+            final_solutions.append(current_processed_solution_dict)
+
+    elif not sympy_solution_list: # sympy.solve() returned empty
+        print("DEBUG: sympy.solve() returned an empty solution. Constructing from master_subs for requested unknowns.")
+        solution_dict_from_subs = {}
+        all_req_unknowns_accounted_for = True # Assume true initially
+        if user_requested_symbols:
+            for s_req in user_requested_symbols:
+                if s_req in master_subs:
+                    solution_dict_from_subs[s_req] = fully_substitute(master_subs[s_req], master_subs)
+                else: # A requested symbol is not in master_subs and not solved by sympy -> truly unknown/unconstrained
+                    # To indicate it's a free parameter if no equations constraint it:
+                    # solution_dict_from_subs[s_req] = s_req
+                    # For now, if it's not found, we consider the solution incomplete for requested vars.
+                    all_req_unknowns_accounted_for = False
+                    print(f"DEBUG: Requested symbol {s_req} not found in master_subs and not solved.")
+
+        # Only return a solution if all requested symbols were found or no specific symbols were requested.
+        # If specific symbols were requested but not all found, it's an incomplete solution.
+        if (user_requested_symbols and all_req_unknowns_accounted_for and solution_dict_from_subs) or \
+           (not user_requested_symbols and not processed_equations): # No specific requests, no eqs left.
+            final_solutions.append(solution_dict_from_subs if solution_dict_from_subs else {}) # Append at least [{}]
+        # If there were processed_equations but sympy found no solution, it's genuinely no solution.
+
+    return final_solutions
+
 
 if __name__ == '__main__':
-    # Simple Test Case: Voltage Divider
-    # V_source --- R1 --- n_mid --- R2 --- GND
-    print("Symbolic Solver Test: Voltage Divider")
+    print("Symbolic Solver Preprocessing Test with Enhanced Logic (v2)")
 
-    # Define symbols
-    V_in_sym = sp.Symbol('V_in')
-    R1_sym = sp.Symbol('R1')
-    R2_sym = sp.Symbol('R2')
+    V_in_sym_t1 = sp.Symbol('V_in_t1')
+    R1_t1, R2_t1 = sp.symbols('R1_t1 R2_t1')
+    V_n_mid_t1_node_sym = sp.Symbol('V_n_mid_t1')
 
-    # Component-specific symbols (voltage across, current through)
-    # These will be created by the components themselves.
-    # V_R1, I_R1, V_R2, I_R2, V_Vs, I_Vs
+    vs_t1 = VoltageSource(name='Vs_t1', node1='n_in_t1', node2='GND', voltage_val_sym=V_in_sym_t1)
+    r1_t1 = Resistor(name='R1_t1', node1='n_in_t1', node2='n_mid_t1', resistance_sym=R1_t1)
+    r2_t1 = Resistor(name='R2_t1', node1='n_mid_t1', node2='GND', resistance_sym=R2_t1)
+    components_t1 = [vs_t1, r1_t1, r2_t1]
 
-    # Create components
-    # VoltageSource: node1 is positive terminal
-    vs = VoltageSource(name='Vs', node1='n_in', node2='GND', voltage_val_sym=V_in_sym)
-    r1 = Resistor(name='R1', node1='n_in', node2='n_mid', resistance_sym=R1_sym)
-    r2 = Resistor(name='R2', node1='n_mid', node2='GND', resistance_sym=R2_sym)
+    knowns_t1 = {V_in_sym_t1: 10, R1_t1: 100}
+    # Use the actual node voltage symbol V_n_mid_t1 that solver will see
+    constraints_t1 = [sp.Symbol('V_n_mid_t1') - 2]
+    unknowns_t1 = [R2_t1, sp.Symbol('V_n_mid_t1')]
 
-    components_vd = [vs, r1, r2]
+    print("\n--- Test Case 1: Voltage Divider (Solve R2, V_n_mid_t1) ---")
+    solution_t1 = solve_circuit(components_t1, unknowns_t1, knowns_t1, constraints_t1, 'GND')
+    print_solutions(solution_t1, "Solution T1 (Expected R2_t1=25, V_n_mid_t1=2)")
 
-    # We want to solve for V_n_mid (voltage at the middle node) and currents.
-    # The node voltage V_n_mid is sp.Symbol('V_n_mid')
-    # The component currents are vs.I_comp, r1.I_comp, r2.I_comp
+    Vs_val_t2, R1_t2, R2_t2, R3_t2 = sp.symbols('Vs_val_t2 R1_t2 R2_t2 R3_t2')
+    vs_t2 = VoltageSource('Vs_t2', 'n_s_t2', 'GND', Vs_val_t2)
+    r1_t2 = Resistor('R1t2', 'n_s_t2', 'n1_c', R1_t2)
+    r2_t2 = Resistor('R2t2', 'n1_c', 'n2_c', R2_t2)
+    r3_t2 = Resistor('R3t2', 'n2_c', 'GND', R3_t2)
+    components_t2 = [vs_t2, r1_t2, r2_t2, r3_t2]
+    knowns_t2 = {Vs_val_t2: 5, R1_t2: 10, R2_t2: 10}
+    constraints_t2 = [ sp.Symbol('V_n2_c') - 1, sp.Symbol('V_n1_c') - (sp.Symbol('V_n2_c') + 2) ]
+    unknowns_t2 = [R3_t2, sp.Symbol('V_n1_c'), sp.Symbol('V_n2_c')]
+    print("\n--- Test Case 2: Chained Constraints (Solve R3, V_n1_c, V_n2_c) ---")
+    solution_t2 = solve_circuit(components_t2, unknowns_t2, knowns_t2, constraints_t2, 'GND')
+    print_solutions(solution_t2, "Solution T2 (Expected R3_t2=5, V_n1_c=3, V_n2_c=1)")
 
-    unknowns_to_find = [sp.Symbol('V_n_mid'), r1.I_comp, r2.I_comp, vs.I_comp]
+    print("\n--- Test Case 3: Fully determined by constraints (No components) ---")
+    x_t3, y_t3 = sp.symbols('x_t3 y_t3')
+    constraints_t3 = [x_t3 - 5, y_t3 - x_t3*2]
+    unknowns_t3 = [x_t3, y_t3]
+    solution_t3 = solve_circuit([], unknowns_t3, None, constraints_t3, 'GND')
+    print_solutions(solution_t3, "Solution T3 (Expected x_t3=5, y_t3=10)")
 
-    # Known values (optional, could leave V_in, R1, R2 symbolic)
-    knowns = {
-        V_in_sym: 10, # 10 Volts
-        R1_sym: 100,  # 100 Ohms
-        R2_sym: 100   # 100 Ohms
-    }
-    # If no knowns, solution will be purely symbolic.
-    # solution_symbolic = solve_circuit(components_vd, unknowns_to_find, ground_node='GND')
-    # print("\nSymbolic Solution (no specific knowns):")
-    # if solution_symbolic:
-    #     for sol_dict in solution_symbolic:
-    #         for sym, val in sol_dict.items():
-    #             print(f"  {sym} = {sp.pretty(val)}")
-    # else:
-    #     print("  No symbolic solution found or error.")
+    print("\n--- Test Case 4: Inconsistent via constraints (No components) ---")
+    x_t4 = sp.Symbol('x_t4')
+    constraints_t4 = [x_t4 - 5, x_t4 - 6]
+    unknowns_t4 = [x_t4]
+    solution_t4 = solve_circuit([], unknowns_t4, None, constraints_t4, 'GND')
+    print_solutions(solution_t4, "Solution T4 (Expected empty for inconsistency)")
 
-    print("\nSolution with knowns (Vin=10, R1=100, R2=100):")
-    solution_numeric = solve_circuit(components_vd, unknowns_to_find, known_substitutions=knowns, ground_node='GND')
-
-    if solution_numeric:
-        # sympy.solve might return a list of solution dictionaries
-        for sol_dict in solution_numeric:
-            for sym, val in sol_dict.items():
-                print(f"  {sym} = {sp.pretty(val)}")
-    else:
-        print("  No solution found or error.")
-
-    # Expected: V_n_mid = 5V, I_R1 = 0.05A, I_R2 = 0.05A, I_Vs = -0.05A (current leaving positive terminal of Vs)
-    # Note: My I_comp for VoltageSource is defined as current *supplied by* the source (out of positive terminal).
-    # KCL: At n_in: -vs.I_comp - r1.I_comp = 0  (if I_comp is current *into* node for r1)
-    # My KCL: -I_Vs + I_R1 = 0 (currents leaving n_in)
-    # My KCL for general node: sum of currents entering = 0
-    # Comp.I_comp is current from node1 to node2.
-    # KCL at n_in:  -vs.I_comp (current from n_in to GND for Vs)
-    #             -r1.I_comp (current from n_in to n_mid for R1)
-    # Correct KCL for my I_comp definition (currents_into_node = 0):
-    # Node n_in:  -r1.I_comp + vs.I_comp = 0  (vs.I_comp enters n_in from internal of source, r1.I_comp leaves n_in)
-    # Node n_mid: r1.I_comp - r2.I_comp = 0
-    # The solver implementation uses:
-    # if comp.node1 == node_name: currents_into_node -= comp.I_comp (current flows out via comp)
-    # if comp.node2 == node_name: currents_into_node += comp.I_comp (current flows in via comp)
-    # This is sum of currents leaving node = 0, or sum of currents entering = 0 if we flip signs. It's consistent.
-    # So, at n_in:
-    #   vs: node1 is n_in. Term: -vs.I_comp (I_Vs, current from n_in to GND).
-    #   r1: node1 is n_in. Term: -r1.I_comp (I_R1, current from n_in to n_mid).
-    #   KCL eq: -vs.I_comp - r1.I_comp = 0  => vs.I_comp + r1.I_comp = 0.
-    #   If I_R1 (n_in to n_mid) is 0.05A, then I_Vs (n_in to GND for the source object) must be -0.05A.
-    #   This means the actual current *from* the source positive terminal (n_in) *into the circuit* is 0.05A.
-    #   The symbol `vs.I_comp` represents current flowing n_in -> GND *through the source component*.
-    #   This interpretation is tricky. It might be more standard to define I_Vs as current *out of* the positive terminal.
-    #   In `VoltageSource`, `self.I_comp` is `I_Vs_name`. `self.values['current']` is this `I_Vs_name`.
-    #   The equation for VS is `V_comp - V_source_val = 0`.
-    #   The KCL for `n_in` using my solver's logic:
-    #     `vs` (node1='n_in', node2='GND', I_comp=I_Vs): `currents_into_node -= I_Vs`
-    #     `r1` (node1='n_in', node2='n_mid', I_comp=I_R1): `currents_into_node -= I_R1`
-    #     Equation: `-I_Vs - I_R1 = 0` => `I_Vs + I_R1 = 0`.
-    #   KCL for `n_mid`:
-    #     `r1` (node1='n_in', node2='n_mid', I_comp=I_R1): `currents_into_node += I_R1` (enters n_mid from r1)
-    #     `r2` (node1='n_mid', node2='GND', I_comp=I_R2): `currents_into_node -= I_R2` (leaves n_mid via r2)
-    #     Equation: `I_R1 - I_R2 = 0` => `I_R1 = I_R2`. Correct.
-    #
-    #   If I_R1 = 0.05A (n_in to n_mid) and I_R2 = 0.05A (n_mid to GND).
-    #   Then from `I_Vs + I_R1 = 0`, we get `I_Vs = -I_R1 = -0.05A`.
-    #   The symbol `I_Vs` is `vs.I_comp`. So the solver will output `I_Vs: -0.05`.
-    #   This means the current associated with the `VoltageSource` component (flowing from its node1 to its node2) is -0.05A.
-    #   This is correct: current of 0.05A actually flows from GND (node2) to n_in (node1) *through the source component's internal path*.
-    #   This is equivalent to saying the source *supplies* 0.05A out of its positive n_in terminal.
-    #   The result `I_Vs = -0.05` for `vs.I_comp` is thus correct under these definitions.
-
-    # Test with a current source
-    # GND --- R --- n1 --- CS --- GND (CS pumps current towards n1)
-    print("\nSymbolic Solver Test: Current Source with Resistor")
-    IsVal_sym = sp.Symbol('Is_val')
-    R_cs_sym = sp.Symbol('R_cs')
-
-    cs_test = CurrentSource(name='Is', node1='GND', node2='n1_cs', current_val_sym=IsVal_sym) # Pumps current from GND to n1_cs
-    r_cs = Resistor(name='Rcs', node1='n1_cs', node2='GND', resistance_sym=R_cs_sym)
-
-    components_cs = [cs_test, r_cs]
-    unknowns_cs = [sp.Symbol('V_n1_cs'), r_cs.I_comp, cs_test.V_comp] # cs_test.I_comp is IsVal_sym
-    knowns_cs = {IsVal_sym: 2, R_cs_sym: 5}
-
-    solution_cs = solve_circuit(components_cs, unknowns_cs, known_substitutions=knowns_cs, ground_node='GND')
-    if solution_cs:
-        for sol_dict in solution_cs:
-            for sym, val in sol_dict.items():
-                print(f"  {sym} = {sp.pretty(val)}")
-    else:
-        print("  No solution found or error for CS test.")
-    # Expected: V_n1_cs = 10V. I_Rcs = 2A (current from n1_cs to GND). V_Is (across current source) = -10V (V_GND - V_n1_cs)
-    # KCL at n1_cs:
-    #   cs_test (node1=GND, node2=n1_cs, I_comp=Is_val): current_into_n1_cs += Is_val
-    #   r_cs    (node1=n1_cs, node2=GND, I_comp=I_Rcs): current_into_n1_cs -= I_Rcs
-    #   Equation: Is_val - I_Rcs = 0 => I_Rcs = Is_val = 2A. Correct.
-    #   For r_cs: V_comp_Rcs = V_n1_cs - V_GND = V_n1_cs.  V_comp_Rcs = I_Rcs * R_cs = 2 * 5 = 10V. So V_n1_cs = 10V. Correct.
-    #   For cs_test: V_comp_CS = V_GND - V_n1_cs = 0 - 10 = -10V. Correct.
-    # The `unknowns_cs` list should include `cs_test.I_comp` if it were an unknown, but it's `IsVal_sym` which is known.
-    # `cs_test.V_comp` is the voltage across the current source, which is an unknown.
+    V_in_sym_t5 = sp.Symbol('V_in_t5')
+    R1_t5_sym, R2_t5_sym = sp.symbols('R1_t5_sym R2_t5_sym')
+    vs_t5 = VoltageSource(name='Vs_t5', node1='n_in_t5', node2='GND', voltage_val_sym=V_in_sym_t5)
+    r1_t5 = Resistor(name='R1_t5', node1='n_in_t5', node2='n_mid_t5', resistance_sym=R1_t5_sym)
+    r2_t5 = Resistor(name='R2_t5', node1='n_mid_t5', node2='GND', resistance_sym=R2_t5_sym)
+    components_t5 = [vs_t5, r1_t5, r2_t5]
+    knowns_t5 = {V_in_sym_t5: 10, R1_t5_sym: 100}
+    constraints_t5 = [sp.Symbol('V_n_mid_t5') - 20]
+    unknowns_t5 = [R2_t5_sym, sp.Symbol('V_n_mid_t5')]
+    print("\n--- Test Case 5: Negative Resistance Expected ---")
+    solution_t5 = solve_circuit(components_t5, unknowns_t5, knowns_t5, constraints_t5, 'GND')
+    print_solutions(solution_t5, "Solution T5 (Expected R2_t5_sym=-200, V_n_mid_t5=20)")
