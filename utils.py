@@ -1,42 +1,21 @@
 # utils.py
 import sympy as sp
-# Ensure simplify is available, though it's usually part of the main sympy import
-from sympy import simplify
+from sympy import simplify, Abs, arg, im, re, deg, N # Explicit imports
 
 def format_symbolic_expression(expr):
-    """
-    Formats a sympy expression using sympy.pretty for consistent output.
-    Now also simplifies the expression.
-    """
-    if expr is None:
-        return "None"
+    if expr is None: return "None"
     try:
-        # Simplify the expression before pretty printing
-        simplified_expr = simplify(expr)
-        return sp.pretty(simplified_expr)
-    except Exception:
-        # If simplification fails for some reason, pretty print original
-        return sp.pretty(expr)
-
+        return sp.pretty(simplify(expr, rational=True))
+    except Exception: return sp.pretty(expr)
 
 def print_solutions(solution_list, title="Solution"):
-    """
-    Prints the solutions in a structured way.
-    Handles cases where solutions might be empty or contain multiple solution sets.
-    Applies simplification to symbolic expressions.
-    """
     print(f"\n--- {title} ---")
-    if not solution_list: # Handles None or empty list from solver directly
+    if not solution_list:
         print("  No solution found or an error occurred in the solver.")
         return
-
-    # Check if the list contains any non-empty dictionaries
-    # any(solution_list) would be False if solution_list is [{}]
-    # any(s for s in solution_list if s) handles lists like [{}, {}] or [{}, {'x':1}]
-    if not any(s for s in solution_list if s):
-        print("  No specific solution values found (system might be trivial, under-determined with no unique solution for requested vars, or solution was empty).")
+    if isinstance(solution_list, list) and not any(s for s in solution_list if s):
+        print("  No specific solution values found.")
         return
-
     if not isinstance(solution_list, list):
         print(f"  Unexpected solution format: {solution_list}")
         return
@@ -46,79 +25,136 @@ def print_solutions(solution_list, title="Solution"):
             print(f"  Solution Set {i+1} is empty.")
             continue
         print(f"  Solution Set {i+1}:")
-        # Sort items by symbol name for consistent output
         try:
-            # Attempt to sort, hoping symbols have a consistent string representation
             sorted_items = sorted(sol_dict.items(), key=lambda item: str(item[0]))
-        except Exception:
-            # Fallback if sorting fails (e.g., mixed types that can't be compared via str)
-            sorted_items = sol_dict.items()
-
+        except Exception: sorted_items = sol_dict.items()
 
         for sym, val in sorted_items:
-            try:
-                # Attempt to evaluate to a float with precision, and chop small errors
-                num_val = float(val.evalf(chop=True))
-                if abs(num_val - round(num_val)) < 1e-9:
-                    print(f"    {str(sym):<15} = {int(round(num_val))}")
+            val_str = ""
+            is_multiline_for_print = False
+            rest_lines_for_print = []
+
+            processed_as_numerical = False
+            # Handle Python native numbers first
+            if isinstance(val, (int, float)):
+                if abs(val - round(val)) < 1e-9 and isinstance(val, float):
+                    val_str = f"{int(round(val))}"
+                elif isinstance(val, int):
+                     val_str = f"{val}"
                 else:
-                    print(f"    {str(sym):<15} = {num_val:.6g}")
-            except (AttributeError, TypeError, ValueError, sp.SympifyError): # Added SympifyError
+                    val_str = f"{val:.6g}"
+                processed_as_numerical = True
+            elif hasattr(val, 'evalf'): # For Sympy objects
+                try:
+                    num_val_evalf = val.evalf(n=15, chop=True)
+
+                    if not num_val_evalf.free_symbols:
+                        real_part_val = re(num_val_evalf)
+                        imag_part_val = im(num_val_evalf)
+
+                        real_check_tolerance = 1e-12
+                        imag_part_as_float = float(imag_part_val.evalf(n=15))
+
+                        if abs(imag_part_as_float) < real_check_tolerance:
+                            f_val = float(real_part_val)
+                            if abs(f_val - round(f_val)) < 1e-9:
+                                val_str = f"{int(round(f_val))}"
+                            else:
+                                val_str = f"{f_val:.6g}"
+                            processed_as_numerical = True
+                        else:
+                            rp_str = f"{float(real_part_val):.4g}"
+                            ip_val_float = float(imag_part_val)
+
+                            if ip_val_float >= 0:
+                                val_str = f"{rp_str} + {ip_val_float:.4g}j"
+                            else:
+                                val_str = f"{rp_str} - {abs(ip_val_float):.4g}j"
+
+                            magnitude = Abs(num_val_evalf)
+                            phase_deg_val = deg(arg(num_val_evalf))
+                            val_str += f"  (Polar: {float(magnitude):.4g} ∠ {float(phase_deg_val):.2f}°)"
+                            processed_as_numerical = True
+                except Exception:
+                    processed_as_numerical = False
+
+            if not processed_as_numerical:
                 pretty_expr = format_symbolic_expression(val)
                 lines = pretty_expr.split('\n')
-                print(f"    {str(sym):<15} = {lines[0]}")
-                for line in lines[1:]:
-                    print(f"    {'':<15}   {line}")
+                val_str = lines[0]
+                if len(lines) > 1:
+                    is_multiline_for_print = True
+                    rest_lines_for_print = lines[1:]
 
-    # This final check might be redundant given the initial checks, but kept for safety.
-    # if not any(s for s in solution_list if s): # Re-check if any solution was actually processed
-    #      print("  No solutions were processed or displayed (list might have contained only empty dicts).")
+            print(f"    {str(sym):<28} = {val_str}")
+            if is_multiline_for_print:
+                for line_content in rest_lines_for_print:
+                    print(f"    {'':<28}   {line_content}")
 
 
 if __name__ == '__main__':
-    s_x, s_y, s_z = sp.symbols('s_x s_y s_z')
+    s_x, s_y, s_z, s_c1, s_c2 = sp.symbols('s_x s_y s_z s_c1 s_c2')
 
-    print("Testing print_solutions with various cases:")
+    print("Testing print_solutions with various cases (v11 - syntax REALLY corrected):")
 
-    # Test case for simplification
     expr_unsimplified = (s_x**2 - 1) / (s_x - 1) + s_y * (s_z + 1) - s_y*s_z
-    # Simplified: s_x + 1 + s_y
 
-    example_sol_complex_sym = [{
-        s_x: expr_unsimplified,
-        s_y: s_x + s_y + s_z + s_x - s_z # Should simplify to 2*s_x + s_y
+    complex_num1 = 3 + 4*sp.I
+    complex_num2 = sp.exp(sp.I * sp.pi / 3).evalf(n=15)
+    complex_num_real = 5.0 + 1e-13*sp.I
+
+    symbolic_complex = s_x + sp.I * s_y
+
+    example_sol_ac = [{
+        s_c1: complex_num1,
+        s_c2: complex_num2,
+        sp.Symbol('Z_eq_symbolic_complex'): symbolic_complex,
+        sp.Symbol('RealNum_from_complex'): complex_num_real,
+        sp.Symbol('Formula_to_simplify'): expr_unsimplified,
+        sp.Symbol('PythonFloat'): 123.456789,
+        sp.Symbol('PythonInt'): 123
     }]
-    print_solutions(example_sol_complex_sym, title="Example Solution with Simplification")
+    print_solutions(example_sol_ac, title="Example AC Solution with Complex Numbers & Simplification")
 
     example_sol_1 = [{s_x: 10, s_y: sp.Rational(1,2)}]
     print_solutions(example_sol_1, title="Example Solution 1 (Numeric)")
 
-    R, I = sp.symbols('R I')
-    example_sol_symbolic = [{s_x: R*I, s_y: I**2}]
+    R, I_sym = sp.symbols('R I_sym')
+    example_sol_symbolic = [{s_x: I_sym*R, s_y: I_sym**2}]
     print_solutions(example_sol_symbolic, title="Example Solution 2 (Simple Symbolic)")
 
-    example_sol_empty_dict_list = [{}] # A list containing one empty solution
+    example_sol_empty_dict_list = [{}]
     print_solutions(example_sol_empty_dict_list, title="Example Solution 3 (List with one empty dict)")
 
-    example_sol_empty_list = [] # An actual empty list
+    example_sol_empty_list = []
     print_solutions(example_sol_empty_list, title="Example Solution 4 (Empty list from solver)")
 
-    example_sol_none = None # Solver might return None
+    example_sol_none = None
     print_solutions(example_sol_none, title="Example Solution 4b (None from solver)")
 
-    example_sol_float = [{s_x: 3.141592653589793, s_y: 2.00000000012345}]
-    print_solutions(example_sol_float, title="Example Solution 5 (Floats with chop and .6g)")
+    # Test with Python floats that should be formatted by the initial check
+    example_sol_py_float = [{sp.Symbol('py_float1'): 3.1415926535, sp.Symbol('py_float2'): 2.0}]
+    print_solutions(example_sol_py_float, title="Example Solution 5 (Python Floats with .6g formatting)")
 
     example_sol_multiple_empty = [{}, {}]
     print_solutions(example_sol_multiple_empty, title="Test improved empty message (List of multiple empty dicts)")
 
-    # Example with a slightly more complex structure that should simplify
     a = sp.Symbol('a')
-    complex_expr = a + a + (a**2 - 1)/(a-1) - (a+1) + 5
-    # simplifies to 2*a + 5
-    print_solutions([{sp.Symbol('complex_val'): complex_expr}], title="Test complex simplification")
+    complex_expr_sym = a + a + (a**2 - 1)/(a-1) - (a+1) + 5
+    print_solutions([ {sp.Symbol('complex_expr_to_simplify'): complex_expr_sym} ], title="Test complex simplification")
 
-    # Example with multi-line pretty print
     f = sp.Function('f')
     multiline_expr = sp.Eq(f(s_x), sp.sin(s_x)/s_x + sp.cos(s_x)*s_x**2)
-    print_solutions([{sp.Symbol('eq_ml'): multiline_expr}], title="Test multi-line pretty print")
+    print_solutions([ {sp.Symbol('multiline_equation'): multiline_expr} ], title="Test multi-line pretty print")
+
+    almost_real_num = 1.0 + 1e-15 * sp.I
+    print_solutions([ {sp.Symbol('almost_real_num_chop'): almost_real_num} ], title="Test chopping small imaginary part")
+
+    almost_imag_num = 1e-15 + 2.0 * sp.I
+    print_solutions([ {sp.Symbol('almost_imag_num_small_real'): almost_imag_num} ], title="Test with small real part")
+
+    pure_imag_num = 2.0 * sp.I
+    print_solutions([ {sp.Symbol('pure_imag_num'): pure_imag_num} ], title="Test pure imaginary")
+
+    neg_imag_num = 3 - 2*sp.I
+    print_solutions([ {sp.Symbol('neg_imag_num'): neg_imag_num} ], title="Test negative imaginary part")
