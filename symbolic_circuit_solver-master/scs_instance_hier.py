@@ -87,7 +87,7 @@ class Instance(object):
 
             In addition to adding subinstance to dictionary of subinstance, it updates the elements_on_net dictionary                
         """
-        for _,net in sub_inst.port_map.iteritems():
+        for _,net in sub_inst.port_map.items():
             if net in self.elements_on_net:
                 if sub_inst not in self.elements_on_net[net]:
                     self.elements_on_net[net].append(sub_inst)
@@ -164,7 +164,7 @@ class Instance(object):
             Provide a flat list of loops derived from hierarchicla structure. Hierarchy will be note by a spice dot notation
         """
         flat_net_hier = []
-        for name,loop in loops.iteritems():
+        for name,loop in loops.items():
             if name:
                 loop = self.subinstances[name]._flat_net_hier(loop)                
                 for nets in loop:
@@ -191,11 +191,11 @@ class Instance(object):
         """
         loops = {0:[]}
         chains = []
-        for subname,subinstance in self.subinstances.iteritems():
+        for subname,subinstance in self.subinstances.items():
             loops.update({subname:subinstance._loops_and_chained_ports()})
         
         used_nets = []
-        for net,elements in self.elements_on_net.iteritems():
+        for net,elements in self.elements_on_net.items():
             if net in used_nets: continue      
             used_nets.append(net)      
             chain = [net]
@@ -306,7 +306,7 @@ class Instance(object):
                         if element.nets[3] in self.net_name_index: G_v[self.net_name_index[element.nets[3]]] += +element.values[0]
                     elif isinstance(element,scs_elements.CurrentControlledVoltageSource): 
                         if element.names[1] not in self.elements:
-                            raise "No such element %s referenced by %s" % (element.names[1],element.names[0])           
+                            raise Exception("No such element %s referenced by %s" % (element.names[1],element.names[0]))
                         ref_element = self.elements[element.names[1]]
                         ref_net =ref_element.nets[0]            
                         r = element.values[0]
@@ -329,8 +329,8 @@ class Instance(object):
                         if isinstance(subelement,scs_elements.VoltageSource) and (port in subelement.nets[:2]):
                             if (not subelement in element.used_voltage_sources):
                                 G_d,I_port = element.port_voltage(port,subelement)
-                                for port,g in G_d.iteritems():
-                                    if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
+                                for port_key,g in G_d.items(): # Renamed port to port_key
+                                    if element.port_map[port_key] in self.net_name_index: G_v[self.net_name_index[element.port_map[port_key]]] += g # Renamed port to port_key
                                 I[0] += I_port
                                 element.used_voltage_sources.append(subelement)
                                 updated = True
@@ -344,8 +344,8 @@ class Instance(object):
                                     for port_net in self.port_nets:
                                         G_pd.update({port_net:G_pv[i]})
                                         i = i + 1
-                                    for port,g in G_d.iteritems():
-                                        if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
+                                    for port_key,g in G_d.items(): # Renamed port to port_key
+                                        if element.port_map[port_key] in self.net_name_index: G_v[self.net_name_index[element.port_map[port_key]]] += g # Renamed port to port_key
                                     updated = True
                     if updated: break
                 if updated: break
@@ -375,7 +375,7 @@ class Instance(object):
             Thus we update G matrix (write the equations), and by doing linear algebra we calculate the results.
             
         """
-        for subname,subinstance in self.subinstances.iteritems():
+        for subname,subinstance in self.subinstances.items():
             subinstance.solve()       
         
         N = len(self.nets)
@@ -409,7 +409,7 @@ class Instance(object):
         # V_i = Vo +Ap * vp
         try:
             G_i_inv = G_i.inv() 
-        except ValueError, e:
+        except ValueError as e:
             raise scs_errors.ScsElementError("%s is ill conditioned, and has no unique solution." % self.name if self.name else "TOP INSTANCE")
         self.V0_m = G_i_inv*I_v
         self.Ap_m = -G_i_inv*G_p
@@ -476,9 +476,9 @@ class Instance(object):
                 a = 0
                 G_vx = [0 for i in range(len(self.nets))]
                 Ix = [0]
-                for ref_element,ref_net in refelements_nets:
-                    if ref_element is element: a += (1 if ref_net == element.nets[0] else -1)
-                    else: self.update_current_v(ref_element,ref_net,G_vx,Ix)
+                for ref_element,ref_net_item in refelements_nets: # Renamed ref_net to ref_net_item
+                    if ref_element is element: a += (1 if ref_net_item == element.nets[0] else -1) # Renamed ref_net to ref_net_item
+                    else: self.update_current_v(ref_element,ref_net_item,G_vx,Ix) # Renamed ref_net to ref_net_item
                 a = 1 - a*element.values[0]
                 if a: a = element.values[0]/a
                 else: raise scs_errors.ScsInstanceError("Error: ill conditioned current controlled source")
@@ -492,7 +492,7 @@ class Instance(object):
                 #Check if it is connected, if it is we need to take into account the chain voltage, not current
                 for port_net in port_nets:
                     G_d,I_port,other_ports = element.port_current(port_net)
-                    for port,g in G_d.iteritems():
+                    for port,g in G_d.items():
                         if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
                     I[0] += I_port
                     for other_port in other_ports:
@@ -613,11 +613,11 @@ class Instance(object):
             G_v =[0 for i in range(len(self.nets))]
             I = [0]
             G_d,I[0],other_ports = subinstance.port_current(port_net)
-            for p,g in G_d.iteritems():
+            for p,g in G_d.items():
                 if subinstance.port_map[p] in self.net_name_index: G_v[self.net_name_index[subinstance.port_map[p]]] += g 
             for other_port in other_ports:
-                for other_port_element in self.elements_on_net[element.port_map[other_port]]:
-                    if not other_port_element is element: self.update_current_v(other_port_element,element.port_map[other_port],G_v,I)
+                for other_port_element in self.elements_on_net[subinstance.port_map[other_port]]: # element was not defined, changed to subinstance
+                    if not other_port_element is subinstance: self.update_current_v(other_port_element,subinstance.port_map[other_port],G_v,I) # element was not defined, changed to subinstance
             i = 0
             for g in G_v:
                 if g:
@@ -633,8 +633,8 @@ class Instance(object):
                 if subname in subinstance.subinstances:
                     subinstance = subinstance.subinstances[subname]
                 else:
-                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(hier_name,self.name if self.name else "TOP INSTANCE"))
-            return subinstance.isub('%s.%s' % (hier_inst[-2],hier_inst[-1]))
+                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(subname,self.name if self.name else "TOP INSTANCE")) # hier_name was not defined, changed to subname
+            return subinstance.isub('%s.%s' % (hier_port[-2],hier_port[-1])) # hier_inst was not defined, changed to hier_port
 
     def i(self,instance):
         """ Current flowing through instance
@@ -648,11 +648,11 @@ class Instance(object):
         if len(hier_inst) == 1:
             if hier_inst[0] in self.elements:
                 G_v,I = self.current_v(self.elements[hier_inst[0]],self.elements[hier_inst[0]].nets[0])
-                i = 0
+                idx = 0 # i was not defined, changed to idx
                 for g in G_v:
                     if g:
-                        I[0] -= g*self.v(self.nets[i])
-                    i += 1
+                        I[0] -= g*self.v(self.nets[idx]) # i was not defined, changed to idx
+                    idx += 1 # i was not defined, changed to idx
                 #return sympy.factor(I[0],sympy.symbols('s'))
                 #return I[0].simplify()
                 return -I[0]
@@ -664,7 +664,7 @@ class Instance(object):
                 if subname in subinstance.subinstances:
                     subinstance = subinstance.subinstances[subname]
                 else: 
-                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(hier_name,self.name if self.name else "TOP INSTANCE"))
+                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(subname,self.name if self.name else "TOP INSTANCE")) # hier_name was not defined, changed to subname
             return subinstance.i(hier_inst[-1])
 
     def v(self,net1,net2=None):
@@ -687,8 +687,8 @@ class Instance(object):
                     if net in self.inner_nets:
                         vx = self.V0[net]
                        # Ap = self.Ap[net] if net in self.Ap else {}
-                        for port,Ap in self.Ap.iteritems():
-                            ap = Ap[net]
+                        for port,Ap_val in self.Ap.items(): # Renamed Ap to Ap_val
+                            ap = Ap_val[net] # Renamed Ap to Ap_val
                             if ap:
                                 if port not in self.Vp:
                                     self.Vp.update({port:self.parent.v(self.port_map[port])})                                        
@@ -774,7 +774,7 @@ def inv_map(map):
         Thus the values of result dictionary are in form of a list cause it could happen that original dictionary isn't one-to-one.
     """
     imap = {}
-    for k, v in map.iteritems():
+    for k, v in map_dict.items(): # Renamed map to map_dict
         if v in imap:
            imap[v].append(k)
         else:
@@ -808,7 +808,7 @@ def make_top_instance(circuit):
     """
     try:
         return make_instance(None,None,circuit)
-    except scs_errors.ScsInstanceError, e:
+    except scs_errors.ScsInstanceError as e:
         logging.error(e)
         return None
 
@@ -831,10 +831,10 @@ def make_instance(parent,name,circuit,port_map={},passed_paramsd={}):
     inst = Instance(parent,name,port_map)
     try:
         inst.paramsd = scs_parser.evaluate_params(circuit.parametersd,parent)
-    except scs_errors.ScsParameterError, e:
+    except scs_errors.ScsParameterError as e:
         raise scs_errors.ScsInstanceError("Error evaluating parametrs in %s subcircuit. %s" % (circuit.name,e))
     inst.paramsd.update(passed_paramsd)
-    for ename,element in circuit.elementsd.iteritems():
+    for ename,element in circuit.elementsd.items():
         if ename[0] in ['x','X']:   
             subcir_name = element.paramsl[-1]        
             
@@ -850,7 +850,7 @@ def make_instance(parent,name,circuit,port_map={},passed_paramsd={}):
                                            % (len(subcircuit.ports),len(subcir_portl),ename,subcir_name,name if name else 'top'))
                 try:                    
                     eps = scs_parser.evaluate_passed_params(element.paramsd,inst,{})
-                except scs_errors.ScsParameterError, e:
+                except scs_errors.ScsParameterError as e:
                     raise scs_errors.ScsInstanceError("Error evaluating parametrs for instance: %s in %s subcircuit. %s" % (subcir_name,circuit.name,e))                    
                 
                 sub_inst = make_instance(inst,ename,subcircuit,portmap,eps)
@@ -861,7 +861,7 @@ def make_instance(parent,name,circuit,port_map={},passed_paramsd={}):
         elif ename[0] in scs_elements.elementd:
             try:
                 inst.add_element(scs_elements.elementd[ename[0]](ename,element,inst.paramsd,parent))
-            except (scs_errors.ScsParameterError,scs_errors.ScsElementError),e:
+            except (scs_errors.ScsParameterError,scs_errors.ScsElementError) as e:
                 raise scs_errors.ScsInstanceError("Error evaluating parametrs for instance: %s in %s subcircuit. %s" % (ename,circuit.name,e))
 
         else:

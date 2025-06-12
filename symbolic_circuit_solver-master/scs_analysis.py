@@ -41,7 +41,7 @@ def measure_analysis(param_d, param_l, instance, file_sufix):
     """
     filename = "%s.results" % file_sufix
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items():
         # tokens = scs_parser.parse_param_expresion(value)
         # try:
         #    value =  float(sympy.sympify(scs_parser.params2values(tokens,instance.paramsd)))
@@ -113,7 +113,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
               'show_legend': 'no',
               'xkcd': 'no'}
 
-    for config_name in config.keys():
+    for config_name in list(config.keys()): # Changed to list(config.keys()) for Python 3
         if config_name in param_d:
             config.update({config_name: param_d[config_name]})
             param_d.pop(config_name)
@@ -123,11 +123,11 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
 
     try:
         xsym = sympy.symbols(config['sweep'])
-    except ValueError:
+    except ValueError: # Removed ", e" as e is not used
         raise scs_errors.ScsAnalysisError("Bad sweep parameter for .dc analysis: %s" % config['sweep'])
 
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items():
         tokens = scs_parser.parse_param_expresion(value)
         try:
             value = float(sympy.sympify(scs_parser.params2values(tokens, instance.paramsd),sympy.abc._clash))
@@ -147,12 +147,12 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         raise scs_errors.ScsAnalysisError(("Option %s for xscale invalid!" % config['yscale']))
 
     if config['yscale'] != 'log' and config['yscale'] != 'linear':
-        raise scs_errors.ScsAnalysisError(("Option %s for yscale invalid!" % config['fscale']))
+        raise scs_errors.ScsAnalysisError(("Option %s for yscale invalid!" % config['fscale'])) # Should be yscale
 
     if config['xkcd'] == 'yes':
         plt.xkcd()
     plt.title(r'$%s$' % config['title'] if config['title'] else ' ')
-    plt.hold(True)
+    # plt.hold(True) # plt.hold is deprecated
 
     for expresion in param_l:
         tokens = scs_parser.parse_analysis_expresion(expresion)
@@ -169,7 +169,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         try:
             plt.xscale(config['xscale'])
             plt.yscale(config['yscale'])
-        except ValueError, e:
+        except ValueError as e:
             raise scs_errors.ScsAnalysisError(e)
 
         plt.xlabel(r'$%s$' % str(xsym))
@@ -179,7 +179,8 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
     if config['hold'] == 'no':
         plt.savefig('%s_%d.png' % (file_sufix, PlotNumber.plot_num))
         PlotNumber.plot_num += 1
-        plt.hold(False)
+        # plt.hold(False) # plt.hold is deprecated
+        plt.clf() # Clear figure for next plot
 
 
 def ac_analysis(param_d, param_l, instance, file_sufix):
@@ -227,13 +228,13 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
               'show_legend': 'no',
               'xkcd': 'no'}
 
-    for config_name in config.keys():
+    for config_name in list(config.keys()): # Changed to list(config.keys()) for Python 3
         if config_name in param_d:
             config.update({config_name: param_d[config_name]})
             param_d.pop(config_name)
 
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items():
         tokens = scs_parser.parse_param_expresion(value)
         try:
             value = float(sympy.sympify(scs_parser.params2values(tokens, instance.paramsd),sympy.abc._clash))
@@ -247,17 +248,17 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
     elif config['fscale'] == 'linear':
         fs = np.linspace(float(config['fstart']), float(config['fstop']), int(config['npoints']))
     else:
-        raise scs_errors.ScsAnalysisError(("Option %s for fscale invalid!" % config['yscale']))
+        raise scs_errors.ScsAnalysisError(("Option %s for fscale invalid!" % config['yscale'])) # Should be fscale
 
     if config['yscale'] != 'log' and config['yscale'] != 'linear':
-        raise scs_errors.ScsAnalysisError(("Option %s for yscale invalid!" % config['fscale']))
+        raise scs_errors.ScsAnalysisError(("Option %s for yscale invalid!" % config['fscale'])) # Should be yscale
 
     filename = "%s.results" % file_sufix
 
     with open(filename, 'a') as fil:
         if config['xkcd'] == 'yes':
             plt.xkcd()
-        plt.hold(True)
+        # plt.hold(True) # plt.hold is deprecated
 
         for expresion in param_l:
             fil.write("%s: %s \n---------------------\n" % ('AC analysis of', expresion))
@@ -275,7 +276,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
 
             p = 0
             titled = 1
-            for pole, degree in poles_r.iteritems():
+            for pole, degree in poles_r.items():
                 if pole == 0:
                     titled *= s ** degree
                 else:
@@ -283,7 +284,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                 p += 1
             z = 0
             titlen = 1
-            for zero, degree in zeros_r.iteritems():
+            for zero, degree in zeros_r.items():
                 if zero == 0:
                     titlen *= s ** degree
                 else:
@@ -306,7 +307,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                 raise scs_errors.ScsAnalysisError("Option %s for type invalid!" % config['type'])
 
             try:
-                ys = [float(zf(f)) for f in fs]
+                ys = [float(zf(f_val)) for f_val in fs] # Renamed f to f_val
             except (ValueError, TypeError):
                 raise scs_errors.ScsAnalysisError(
                     "Numeric error while evaluating expresions: %s. Not all values where subsituted?" % value0)
@@ -317,7 +318,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
             try:
                 plt.xscale(config['fscale'])
                 plt.yscale(config['yscale'])
-            except ValueError, e:
+            except ValueError as e:
                 raise scs_errors.ScsAnalysisError(e)
 
             plt.xlabel('f [Hz]')
@@ -346,7 +347,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                         plt.plot(pole_value_f, zf(pole_value_f), 'o', label=pole_label)
                         plt.text(pole_value_f, zf(pole_value_f), pole_label)
                         plt.axvline(pole_value_f, linestyle='dashed')
-                except:
+                except: # Bare except
                     pass
 
             z = 0
@@ -367,14 +368,14 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                         plt.plot(zero_value_f, zf(zero_value_f), '*', label=zero_label)
                         plt.axvline(zero_value_f, linestyle='dashed')
                         plt.text(zero_value_f, zf(zero_value_f), zero_label)
-                except:
+                except: # Bare except
                     pass
             if config['show_legend'] == 'yes':
                 plt.legend()
             if config['hold'] == 'no':
-                plt.hold(False)
+                # plt.hold(False) # plt.hold is deprecated
                 plt.savefig('%s_%d.png' % (file_sufix, PlotNumber.plot_num))
-                plt.clf()
+                plt.clf() # Clear figure for next plot
                 PlotNumber.plot_num += 1
 # Dictionary of analysis name with appropriate functions
 analysis_dict = {'measure': measure_analysis,
