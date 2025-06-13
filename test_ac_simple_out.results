@@ -1,0 +1,37 @@
+AC analysis of: OMEGA
+---------------------
+  Expression for lambdify (terms of f): OMEGA
+  Poles (rad/s): []
+  Zeros (rad/s): []
+
+
+AC analysis of: 1000
+---------------------
+  Expression for lambdify (terms of f): 1000
+  Poles (rad/s): []
+  Zeros (rad/s): []
+
+
+AC:
+  Expression: V_OUT_RECT
+  Symbolic Value: V_OUT_RECT
+  Numerical Value: V_OUT_RECT
+---------------------
+  Expression: V(N_OUT)
+  Symbolic Value:     10.0⋅s
+- ────────── + 10
+  s + 1000.0
+  Numerical Value: -10.0*s/(s + 1000.0) + 10.0
+---------------------
+
+AC:
+  Expression: I_VSAC_RECT
+  Symbolic Value: I_VSAC_RECT
+  Numerical Value: I_VSAC_RECT
+---------------------
+  Expression: I(VSAC)
+  Symbolic Value:        -s
+──────────────────
+100.0⋅s + 100000.0
+  Numerical Value: -s/(100.0*s + 100000.0)
+---------------------

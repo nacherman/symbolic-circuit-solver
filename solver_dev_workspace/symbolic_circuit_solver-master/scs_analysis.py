@@ -93,6 +93,7 @@ def measure_analysis(param_d, param_l, instance, file_sufix):
         except Exception as e: out_lines.append(f"  Numerical Value: Could not eval to float for '{expr_str_to_measure}' ({e})")
         out_lines.append("---------------------")
     with open(filename, 'a') as fil: fil.write("\n".join(out_lines) + "\n\n")
+    # Removed temporary print statements for .results content
 
 class PlotNumber:
     plot_num = 0

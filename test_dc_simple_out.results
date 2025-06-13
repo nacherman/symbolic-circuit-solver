@@ -1,0 +1,49 @@
+DC:
+  Expression: V_N1_MEAS
+  Symbolic Value: V_N1_MEAS
+  Numerical Value: V_N1_MEAS
+---------------------
+  Expression: V(N1)
+  Symbolic Value: 10
+  Numerical Value: 10.0000000000000
+---------------------
+
+DC:
+  Expression: V_N2_MEAS
+  Symbolic Value: V_N2_MEAS
+  Numerical Value: V_N2_MEAS
+---------------------
+  Expression: V(N2)
+  Symbolic Value: 6.00000000000000
+  Numerical Value: 6.00000000000000
+---------------------
+
+DC:
+  Expression: I_VS1_MEAS
+  Symbolic Value: I_VS1_MEAS
+  Numerical Value: I_VS1_MEAS
+---------------------
+  Expression: I(VS1)
+  Symbolic Value: -0.00300000000000000
+  Numerical Value: -0.00300000000000000
+---------------------
+
+DC:
+  Expression: I_R1_MEAS
+  Symbolic Value: I_R1_MEAS
+  Numerical Value: I_R1_MEAS
+---------------------
+  Expression: I(R1)
+  Symbolic Value: 0.00200000000000000
+  Numerical Value: 0.00200000000000000
+---------------------
+
+DC:
+  Expression: P_R2_MEAS
+  Symbolic Value: P_R2_MEAS
+  Numerical Value: P_R2_MEAS
+---------------------
+  Expression: POWER(R2)
+  Symbolic Value: 0.0120000000000000
+  Numerical Value: 0.0120000000000000
+---------------------

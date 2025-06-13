@@ -236,10 +236,29 @@ def solve_circuit(components, unknowns_to_derive, known_specifications, ground_n
     if not output_solutions and not unknowns_to_derive and not processed_equations: # Case: no unknowns, no equations, solution is {}
         output_solutions.append({})
 
+    if not output_solutions and not unknowns_to_derive and not processed_equations: # Case: no unknowns, no equations, solution is {}
+        output_solutions.append({})
+
+    # ---- START DEBUG PRINTS (using logging) ----
+    # Ensure logging is imported in this file: import logging
+    logging.debug(f"solve_circuit: Input unknowns_to_derive ({len(unknowns_to_derive or [])}):")
+    for i, s_ud in enumerate(unknowns_to_derive or []):
+        logging.debug(f"  req_unk[{i}]: {str(s_ud)}, id: {id(s_ud)}, type: {type(s_ud)}")
+
+    logging.debug(f"solve_circuit: Outputting {len(output_solutions)} solution_dicts.")
+    for i, sol_dict in enumerate(output_solutions):
+        logging.debug(f"  Solution dict {i} ({len(sol_dict)} items):")
+        if not sol_dict: logging.debug("    EMPTY DICT")
+        for k_sym, v_expr in sol_dict.items():
+            val_str_for_print = sp.pretty(v_expr) if isinstance(v_expr, sp.Expr) else str(v_expr)
+            logging.debug(f"    key: {str(k_sym)}, id: {id(k_sym)}, type: {type(k_sym)} -> val: {val_str_for_print}")
+    # ---- END DEBUG PRINTS ----
     return output_solutions
 
 
 if __name__ == '__main__':
+    # Add basic logging config for standalone testing of this file
+    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(filename)s:%(lineno)d: %(message)s')
     print("Symbolic Solver (root_solver) - Imports now from all_symbolic_components.py")
     print("\n--- Solver Test: Parameter Protection / Formula Derivation (using new imports) ---")
     V_in_param, I_Rp_param, R_s_param_tc = sp.symbols('V_in_param I_Rp_param R_s_param_tc')
