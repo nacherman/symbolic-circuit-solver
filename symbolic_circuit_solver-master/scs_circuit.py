@@ -99,19 +99,26 @@ class TopCircuit(Circuit):
         created_print_file = False
 
         for analysis in self.analysisl:
-            time1 = time.clock() # time.clock() is deprecated in Py3, time.perf_counter() or time.process_time() preferred
+            time1 = time.perf_counter() # time.clock() is deprecated, using time.perf_counter()
             if not created_print_file:
-                with open(results_filename, 'w'): # Will create or overwrite
-                    created_print_file = True # This flag seems redundant if file is opened in 'w' each time analysis runs
-                                            # Or it means only first analysis creates/overwrites, subsequent append.
-                                            # However, typical use is one analysis run at a time.
+                # Open in 'a' (append) mode if multiple .MEASURE lines should go to same results file
+                # Or 'w' if each analysis run (e.g. .DC then .AC) should overwrite.
+                # For now, assume 'w' is fine for first .MEASURE to create/clear.
+                # Subsequent .MEASUREs for the same analysis type (e.g. multiple DC measures) will append
+                # if scs_analysis.measure_analysis opens in append mode.
+                # Let's keep 'w' here to ensure a clean start for an analysis block.
+                # scs_analysis.py handles appending for multiple measures of the same type.
+                with open(results_filename, 'w') as f_res: # Ensure file is created/cleared once per perform_analysis call
+                     pass # Just to create/truncate
+                created_print_file = True
             try:
+                # The analysis_dict call will handle appending to results_filename if needed
                 scs_analysis.analysis_dict[analysis.type](analysis.paramsd, analysis.paramsl, instance, file_prefix)
                 logging.info("Analysis: .%s '%s' performed in: %f s" %
-                             (analysis.type, analysis.paramsl[0], time.clock() - time1))
-            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError) as e: # Corrected Syntax
+                             (analysis.type, analysis.paramsl[0] if analysis.paramsl else "", time.perf_counter() - time1))
+            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError) as e:
                 logging.warning(e)
-                logging.warning("Analysis: %s %s not performed" % (analysis.type, analysis.paramsl[0]))
+                logging.warning("Analysis: .%s '%s' not performed" % (analysis.type, analysis.paramsl[0] if analysis.paramsl else ""))
 
                 # TODO: add exception handling here
 

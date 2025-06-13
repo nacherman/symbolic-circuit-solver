@@ -29,7 +29,7 @@ __email__ = "kniola.tomasz@gmail.com"
 __status__ = "development"
 
 # Regexes
-reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>\$.*$)')
+reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>[\$;].*$)') # Handles $ and ; comments
 reg_param_with_rest = re.compile('(?P<rest>.*)(?P<param>(\s.+?=\s*?\'.*?\'$)|(\s.+?=\s*?\".*?\"$))')
 reg_param = re.compile('(?P<name>.*?)=.*?(\'|\")(?P<value>.*)(\'|\")')
 reg_param_wo_brackets = re.compile('(?P<rest>.*)\s(?P<name>.+?)=\s*?(?P<value>.+?)$')
@@ -275,7 +275,7 @@ def evaluate_passed_params(paramsd_on_x_line, inst_calling_subcircuit):
             evaluated_passed_params[param_name] = sympy.Symbol(param_name + "_passed_eval_error")
     return evaluated_passed_params
 
-def evaluate_expresion(expresion_str, instance_paramsd_context, parent_instance_context=None):
+def evaluate_expresion(expresion_str, current_instance_object): # Changed signature
     if isinstance(expresion_str, sympy.Expr): return expresion_str
     if not isinstance(expresion_str, str): expresion_str = str(expresion_str)
     original_expresion_str_for_fallback = expresion_str
@@ -283,51 +283,124 @@ def evaluate_expresion(expresion_str, instance_paramsd_context, parent_instance_
     if expresion_str.startswith('{') and expresion_str.endswith('}'):
         expresion_str = expresion_str[1:-1]
 
-    tokens = parse_param_expresion(expresion_str)
+    # Use parse_analysis_expresion as it handles functions like V(), I() better
+    tokens = parse_analysis_expresion(expresion_str)
 
-    def expand_tokens_with_context(_tokens):
+    # SYMPYFY_LOCALS_BASE already contains common math functions and s, I, pi etc.
+    # We need to add MAG, DEG, ARG if not already handled by sympy.
+    # For now, assume they might be sympy functions or need to be custom.
+    # Let's define them for our sympify context if they are not standard.
+    custom_math_functions = {
+        "MAG": lambda x: sympy.Abs(x),
+        "ABS": lambda x: sympy.Abs(x),
+        "ARG": lambda x: sympy.arg(x), # Returns radians
+        "PHASE": lambda x: sympy.arg(x), # Alias for ARG
+        "DEG": lambda x: x * 180 / sympy.pi, # Converts radians to degrees
+        "DB": lambda x: 20 * sympy.log(sympy.Abs(x), 10), # Decibels
+        # POWER(R1) might be special, not a simple function.
+        # For now, focus on V() and I() which are instance methods.
+    }
+    # Merge with SYMPYFY_LOCALS_BASE and parameters from instance
+    eval_context = {**SYMPYFY_LOCALS_BASE, **custom_math_functions}
+    if current_instance_object and current_instance_object.paramsd:
+        for k,v_loc in current_instance_object.paramsd.items():
+            key_str = str(k.name if hasattr(k, 'name') else k)
+            eval_context[key_str] = v_loc
+
+
+    def expand_tokens_with_instance_methods(_tokens, instance_obj):
+        # This function will now try to call instance.v() and instance.i()
+        # if it encounters V(net) or I(element) tokens.
+        # For other functions like MAG(V(net)), it constructs a string expression
+        # that sympy.sympify can evaluate using the eval_context.
+
         expr_parts = []
         for token in _tokens:
-            if isinstance(token, list):
-                expr_parts.append(f"({expand_tokens_with_context(token)})")
+            if isinstance(token, list): # A nested expression (e.g. arguments to a function)
+                expr_parts.append(f"({expand_tokens_with_instance_methods(token, instance_obj)})")
             else:
-                if reg_only_symbol.match(token):
-                    # Check current instance's parameters first
-                    if token in instance_paramsd_context:
-                        expr_parts.append(str(instance_paramsd_context[token]))
-                    # Then try hierarchical lookup via parent
-                    else:
-                        val_from_parent = get_parent_evaluated_param(token, parent_instance_context, instance_context=instance_paramsd_context)
-                        if val_from_parent: expr_parts.append(val_from_parent)
-                        # Check for global s and omega from symbolic_components
-                        elif token == str(s_laplace_sym_global) or token.lower() == 's': expr_parts.append(str(s_laplace_sym_global))
-                        elif token.lower() == 'omega': expr_parts.append(str(s_laplace_sym_global))
-                        else: expr_parts.append(token) # Keep as symbol if not found anywhere
-                elif reg_only_numeric_eng.match(token):
+                # Check if token is a V(net) or I(element) style function call
+                m_func = reg_only_function.match(token)
+                if m_func:
+                    func_name = m_func.group('function').upper()
+                    func_arg_str = m_func.group('argument')
+                    if func_name == 'V':
+                        # Argument to V() can be one node "N1" or two "N1,N2"
+                        arg_parts = [a.strip() for a in func_arg_str.split(',')]
+                        if len(arg_parts) == 1:
+                            val = instance_obj.v(arg_parts[0])
+                        elif len(arg_parts) == 2:
+                            val = instance_obj.v(arg_parts[0], arg_parts[1])
+                        else:
+                            raise scs_errors.ScsParameterError(f"Function V() expects 1 or 2 arguments, got: {func_arg_str}")
+                        # We need to return a string that sympify can use, or directly the Sympy object.
+                        # If instance.v() returns a Sympy object, we can't just append it to expr_parts if other parts are strings.
+                        # This expansion needs to build a list of Sympy objects and strings, then combine.
+                        # For now, assume instance.v() returns a Sympy object, and this is the only part of the expression.
+                        # This is a simplification. A full expression evaluator is more complex.
+                        # Let's try to make evaluate_expression return the direct Sympy object from v() or i()
+                        # if the expression IS v(...) or i(...)
+                        if len(_tokens) == 1: return val # Special case: if expression is *just* V(...) or I(...)
+                        expr_parts.append(str(val)) # Else, stringify for larger expression
+
+                    elif func_name == 'I':
+                        val = instance_obj.i(func_arg_str)
+                        if len(_tokens) == 1: return val
+                        expr_parts.append(str(val))
+                    elif func_name == 'POWER': # POWER(R1)
+                        # This would need: P_R1 symbol from solved_dict.
+                        # P_R1 = instance_obj.solved_dict.get(sp.Symbol(f"P_{func_arg_str.upper()}"))
+                        # For now, let POWER(X) become a symbol P_X to be resolved by sympify context
+                        # if P_X is in instance_obj.paramsd (populated from solved_dict)
+                        expr_parts.append(f"P_{func_arg_str.upper()}")
+                    else: # Other functions like MAG, DEG, ARG, or user-defined: keep as string for sympify
+                        expr_parts.append(token)
+                elif reg_only_symbol.match(token):
+                    # Parameters or s, omega etc.
+                    # These will be resolved by sympy.sympify using the 'eval_context'
+                    expr_parts.append(token)
+                elif reg_only_numeric_eng.match(token): # Numeric with engineering suffix
                     m = reg_only_numeric_eng.search(token)
-                    if m.group('number') is not None:
-                         expr_parts.append(m.group('number') + "*" + str(suffixd[m.group('suffix')]))
-                    else: expr_parts.append(token)
-                else:
+                    num_part = m.group('number') if m.group('number') else "1"
+                    expr_parts.append(num_part + "*" + str(suffixd[m.group('suffix')]))
+                else: # Plain numbers, operators
                     expr_parts.append(token)
         return "".join(expr_parts)
 
-    final_expr_str = expand_tokens_with_context(tokens)
+    # Handle the simple V(X) or I(X) case first
+    if len(tokens) == 1 and isinstance(tokens[0], str):
+        m_func_direct = reg_only_function.match(tokens[0])
+        if m_func_direct:
+            func_name = m_func_direct.group('function').upper()
+            func_arg_str = m_func_direct.group('argument')
+            if func_name == 'V':
+                arg_parts = [a.strip() for a in func_arg_str.split(',')]
+                if len(arg_parts) == 1: return current_instance_object.v(arg_parts[0])
+                if len(arg_parts) == 2: return current_instance_object.v(arg_parts[0], arg_parts[1])
+            elif func_name == 'I':
+                return current_instance_object.i(func_arg_str)
+            # POWER(X) could be handled here if desired, by looking up P_X in solved_dict/paramsd
+
+    # For more complex expressions like MAG(V(N1)) or V(N1)-V(N2)
+    final_expr_str = expand_tokens_with_instance_methods(tokens, current_instance_object)
     try:
-        current_sympify_locals = {**SYMPYFY_LOCALS_BASE}
-        if instance_paramsd_context:
-            for k,v_loc in instance_paramsd_context.items():
-                key_str = str(k.name if hasattr(k, 'name') else k)
-                current_sympify_locals[key_str] = v_loc
-        
-        return sympy.sympify(final_expr_str, locals=current_sympify_locals)
+        # The eval_context now includes parameters from instance.paramsd (which has solved values)
+        # and custom functions like MAG, DEG.
+        return sympy.sympify(final_expr_str, locals=eval_context)
     except Exception as e:
-        logging.warning(f"Failed to sympify expr '{final_expr_str}' from '{expresion_str}'. Err: {e}. Returning as symbol.")
-        return sympy.Symbol(original_expresion_str_for_fallback)
+        logging.warning(f"Failed to sympify complex expr '{final_expr_str}' from '{expresion_str}'. Error: {e}")
+        # Fallback to trying to sympify the original string if our expansion failed badly.
+        try:
+            return sympy.sympify(original_expresion_str_for_fallback, locals=eval_context)
+        except Exception as e2:
+            logging.error(f"Double fail to sympify: 1) '{final_expr_str}' 2) '{original_expresion_str_for_fallback}'. Errors: {e}, {e2}. Returning as symbol.")
+            return sympy.Symbol(original_expresion_str_for_fallback)
 
 
 def strip_comment(in_str):
     if in_str.startswith('$'): return ""
+    m = reg_comment.search(in_str)
+    if in_str.startswith('$') or in_str.startswith(';'): return "" # Whole line is comment
     m = reg_comment.search(in_str)
     return m.group('not_comment').strip() if m else in_str.strip()
 

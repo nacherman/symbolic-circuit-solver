@@ -1,6 +1,6 @@
 import sympy as sp
 from sympy.solvers.solveset import linsolve
-from symbolic_components import BaseComponent, Resistor, Inductor, Capacitor, VoltageSource, CurrentSource, VCVS, VCCS, CCVS, CCCS, omega as omega_sym_global
+from symbolic_components import BaseComponent, Resistor, Inductor, Capacitor, VoltageSource, CurrentSource, VCVS, VCCS, CCVS, CCCS, s_sym # Import s_sym
 from utils import print_solutions
 
 
@@ -27,7 +27,7 @@ def solve_circuit(components, unknown_symbols_to_derive, known_specifications, g
     all_equations = []
     all_nodes = set()
     node_voltage_symbols = {}
-    parameter_symbols = {omega_sym_global}
+    parameter_symbols = {s_sym} # Use s_sym (imported from symbolic_components)
 
     if components:
         for comp in components:
