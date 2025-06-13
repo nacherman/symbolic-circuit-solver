@@ -14,6 +14,12 @@ import logging
 import scs_circuit
 import scs_errors
 
+# Adjust sys.path to allow importing from root project directory
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from symbolic_components import s_sym as s_laplace_sym_global
+
 __author__ = "Tomasz Kniola"
 __credits__ = ["Tomasz Kniola"]
 
@@ -22,620 +28,507 @@ __version__ = "0.0.1"
 __email__ = "kniola.tomasz@gmail.com"
 __status__ = "development"
 
-# Matches line with comment at the end like: foo $ bar
+# Regexes
 reg_comment = re.compile('(?P<not_comment>.*?)(?P<comment>\$.*$)')
-# Matches whole line with parameter definition at the end like: foo bar = 'spam spam spam'
 reg_param_with_rest = re.compile('(?P<rest>.*)(?P<param>(\s.+?=\s*?\'.*?\'$)|(\s.+?=\s*?\".*?\"$))')
-# Matches just the parameter: foo = 'spam spam spam'
 reg_param = re.compile('(?P<name>.*?)=.*?(\'|\")(?P<value>.*)(\'|\")')
-# Matches whole line with paramter, but that one definition is without apostophes like: foo = bar
 reg_param_wo_brackets = re.compile('(?P<rest>.*)\s(?P<name>.+?)=\s*?(?P<value>.+?)$')
-# Matches line with last item being a posiotional parameter like: spam spam spam 'foo'
 reg_unnamed_param_with_rest = re.compile('(?P<rest>.*)(?P<param>(\'.*?\'$)|(\".*?\"$))')
-# Matches just positional parameter: 'foo'
 reg_unnamed_param = re.compile('(\'|\")(?P<value>.*)(\'|\")')
-# Matches a line with simple positional parameter like: spam spam spam foo
 reg_simple_param = re.compile('(?P<rest>.*)\s(?P<param>.*?$)')
-# Matches numeric values: 1, 1.01, 1e1, 1.0e+1, 1e-1 etc. could be more charachters after
 reg_numeric = re.compile('(?P<token>^\d+\.?(\d*?)((e|E)(\+|\-)?\d+?)?)(.*)')
-# Matches engineer format numbers: 1k, 1.01n etc. could be more charachters after
 reg_numeric_eng = re.compile('(?P<token>^\d+\.?(\d*?)(meg|Meg|MEg|MEG|a|A|f|F|p|P|n|N|u|U|m|M|k|K|x|X|g|G|t|T))(.*)')
-# Matches engineer format numbers: 1k, 1.01n etc. no more charachters after
 reg_only_numeric_eng = re.compile(
     '^(?P<number>\d+\.?\d*)?(?P<suffix>meg|Meg|MEg|MEG|a|A|f|F|p|P|n|N|u|U|m|M|k|K|x|X|g|G|t|T)$')
-# Matches mathematical operators: *, **, +, -, / could be more charachters after
 reg_operator = re.compile('(?P<token>^((\*\*?)|\+|\-|/))(.*)')
-# Matches alphanumeric name of parameter, could be more charachters after
 reg_symbols = re.compile('(?P<token>^[a-zA-Z]+[\w_\{\}]*)(.*)')
-# Matches alphanumeric name of parameter, no more charachters after
 reg_only_symbol = re.compile('(?P<symbol>^[a-zA-Z]+[\w_\{\}]*)$')
-# Matches the inside of beginig brackets like: (foo) bar
 reg_brackets = re.compile('(^\((?P<token>.*)\))(.*)')
-# Matches funcion expresion, more characters could be after: foo(bar) spam spam spam
 reg_function = re.compile('(?P<token>^[a-zA-z]?[\w_\{\}]*?\(.*?\))(.*)')
-# Matches just function expresion: foo(bar)
-reg_only_function = re.compile('(?P<function>^[a-zA-z]?[\w_\{\}]*?)\((?P<argument>.*?)\)$')
+reg_only_function = re.compile('(?P<function>^[a_zA-z]?[\w_\{\}]*?)\((?P<argument>.*?)\)$')
 
-# Engineer sufixes for numbers
 suffixd = {'meg': 1e6, 'Meg': 1e6, 'MEg': 1e6, 'MEG': 1e6,
            'a': 1e-18, 'A': 1e-18, 'f': 1e-15, 'F': 1e-15,
            'p': 1e-12, 'P': 1e-12, 'n': 1e-9, 'N': 1e-9,
            'u': 1e-6, 'U': 1e-6, 'm': 1e-3, 'M': 1e-3,
-           'k': 1e6, 'K': 1e3, 'x': 1e6, 'X': 1e6,
+           'k': 1e3, 'K': 1e3, 'x': 1e6, 'X': 1e6,
            'g': 1e9, 'G': 1e9, 't': 1e12, 'T': 1e12}
 
+SYMPYFY_LOCALS_BASE = {
+    "I": sympy.I, "pi": sympy.pi, "exp": sympy.exp,
+    "sin": sympy.sin, "cos": sympy.cos, "tan": sympy.tan,
+    "asin": sympy.asin, "acos": sympy.acos, "atan": sympy.atan,
+    "sqrt": sympy.sqrt, "log": sympy.log, "ln": sympy.log,
+    "s": s_laplace_sym_global,
+    "omega": s_laplace_sym_global
+}
 
-def evaluate_param(param, paramsd, evaluated_paramsd, parent=None, params_called_list=None):
-    """ Evaluates param value and puts it into dictionary for later use
+# Moved parse_param_expresion and parse_analysis_expresion before evaluate_param
+def parse_param_expresion(expresion):
+    expresion = expresion.strip()
+    tokens = []
+    while expresion:
+        m = reg_numeric_eng.search(expresion)
+        if not m: m = reg_numeric.search(expresion)
+        if not m: m = reg_operator.search(expresion)
+        if not m: m = reg_symbols.search(expresion)
+        if m: tokens.append(m.group('token'))
+        else:
+            m = reg_brackets.search(expresion)
+            if m: tokens.append(parse_param_expresion(m.group('token')))
+        if not m: raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion)
+        else: expresion = m.group(m.lastindex).strip()
+    return tokens
 
-        param: name of the parameter which values needs to be evaluated
-        
-        paramsd: dictionary of params which values may be yet to evaluated whith their expresions inside, param SHOUD be
-        inside
+def parse_analysis_expresion(expresion):
+    expresion0 = expresion
+    expresion = expresion.strip()
+    tokens = []
+    while expresion:
+        m = reg_numeric_eng.search(expresion)
+        if not m: m = reg_numeric.search(expresion)
+        if not m: m = reg_operator.search(expresion)
+        if not m: m = reg_function.search(expresion)
+        if not m: m = reg_symbols.search(expresion)
+        if m: tokens.append(m.group('token'))
+        else:
+            m = reg_brackets.search(expresion)
+            if m:
+                try: tokens.append(parse_analysis_expresion(m.group('token')))
+                except scs_errors.ScsParameterError: raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion0)
+        if not m: raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion0)
+        else: expresion = m.group(m.lastindex).strip()
+    return tokens
 
-        evaluated_paramsd: dictionary of already evaluated params, could be numerical value or symbols expresion (sympy)
-    
-        parent: parrent circuit of circuit which made the call, its for while we can't find definition in own
-        dictionaries we can look for it in parents ones
 
-        params_called_list: a list of params which we are already in process of evaluating so we don't call to evaluate
-        them again, its for catching a circulary reference
+def get_parent_evaluated_param(param, parent_instance, params_called_list=None, instance_context=None):
+    if params_called_list is None: params_called_list = []
+    if parent_instance:
+        if param in parent_instance.paramsd:
+            val = parent_instance.paramsd[param]
+            return str(val)
+        return get_parent_evaluated_param(param, parent_instance.parent, params_called_list=params_called_list, instance_context=parent_instance)
+    return ''
 
-        This funciotn expands the expresion for a parameter to its grammatic tokens and look for their value or calls to
-        evaluate their values if they are on the list
-        of paramters to be evaluated and weren't called for yet. When it completes to get all the needed values it
-        calculates the expresion for that value, and puts it in the evaluated_paramsd. Raises an exception if
-        definitions aren't found. Also raises exception if expresion is ill-formed.
-    """
-
+def evaluate_param(param, paramsd, evaluated_paramsd, parent=None, params_called_list=None, instance_context=None):
     def expand(_tokens):
-        """ Expands glues together tokens into one expresion
-            
-            tokens: gramatical tokens to be expanded into one expresion            
-
-            Take tokens and expand into expresion string, take all the tokens which are params to their value
-            It's inner function of evaluate_param so it uses its variables.
-            Output string should be able to simpyfy.
-        """
         expr = ''
         for token in _tokens:
             if isinstance(token, list):
                 expr += '(%s)' % expand(token)
             else:
-                if reg_only_symbol.match(token):  # symbol token
-                    if token not in evaluated_paramsd:
-                        # Check if that parameter is on the list to be evaluated
-                        if token in paramsd:
-                            if token not in params_called_list:
-                                tmp = evaluate_param(token, paramsd, evaluated_paramsd, parent,
-                                                     params_called_list + [token])
-                                if tmp:
-                                    evaluated_paramsd.update({token: sympy.sympify(tmp,sympy.abc._clash)})
-                            else:
-                                raise scs_errors.ScsParameterError("Circulary refence for %s" % token)
-                        else:
-                            tmp = get_parent_evaluated_param(token, parent)
-                            if not tmp:
-                                raise scs_errors.ScsParameterError("Can't find definition for parameter: %s" % token)
+                # Pre-strip units from token before further processing
+                processed_token = token
+                units_to_strip = ["FARAD", "FD", "F", "HENRY", "H", "OHMS", "OHM", "HZ", "V", "A", "SEC", "S"] # Added S for seconds, common units
+                units_to_strip.sort(key=len, reverse=True) # Sort by length for longest match
 
+                # Store original token case for symbol matching if no unit is stripped.
+                # Symbol matching should be case-sensitive if possible, or consistently cased.
+                # For now, scs_parser tends to uppercase lines then lowercase for some keywords.
+                # Parameters are often case-sensitive in SPICE. Let's assume processed_token maintains original case from tokenizer.
+
+                original_processed_token_for_symbol_lookup = processed_token
+
+                for unit_upper in units_to_strip:
+                    # Check if current processed_token ends with a unit (case-insensitive)
+                    if processed_token.upper().endswith(unit_upper):
+                        val_part = processed_token[:-len(unit_upper)]
+                        # Only strip unit if remaining part is numeric, eng notation, or empty
+                        # This prevents stripping 'F' from a symbol like 'OFFSET'
+                        if reg_only_numeric_eng.match(val_part) or \
+                           reg_numeric.match(val_part) or \
+                           not val_part: # Allows token to be just a unit like "F"
+                            processed_token = val_part
+                            break # Stripped one unit, that's enough
+
+                # Now, use 'processed_token' for numeric/symbol checks
+                # If processed_token became empty (e.g. original token was just "F"), it won't match symbol/numeric
+
+                if not processed_token: # If token was purely a unit that got stripped
+                    pass # Effectively ignore the unit token, add nothing to expr
+                elif reg_only_symbol.match(processed_token):
+                    # Use original_processed_token_for_symbol_lookup if needed for case sensitivity,
+                    # but current parameter handling seems to work with whatever case comes.
+                    # Sticking to processed_token for now.
+                    active_token_for_symbol = processed_token
+                    if active_token_for_symbol not in evaluated_paramsd:
+                        if active_token_for_symbol in paramsd:
+                            if active_token_for_symbol not in params_called_list:
+                                tmp = evaluate_param(active_token_for_symbol, paramsd, evaluated_paramsd, parent,
+                                                     params_called_list + [active_token_for_symbol], instance_context=instance_context)
+                                if tmp is not None:
+                                    try:
+                                        basic_sympify_locals = {k: SYMPYFY_LOCALS_BASE[k] for k in ['I','pi','exp','s','omega'] if k in SYMPYFY_LOCALS_BASE}
+                                        evaluated_paramsd.update({active_token_for_symbol: sympy.sympify(tmp, locals=basic_sympify_locals)})
+                                    except (sympy.SympifyError, TypeError):
+                                        evaluated_paramsd.update({active_token_for_symbol: tmp})
+                            else:
+                                raise scs_errors.ScsParameterError("Circulary refence for %s" % active_token_for_symbol)
+                        elif instance_context and active_token_for_symbol in instance_context.paramsd:
+                            expr += str(instance_context.paramsd[active_token_for_symbol])
+                            continue
+                        else:
+                            tmp = get_parent_evaluated_param(active_token_for_symbol, parent, instance_context=instance_context, params_called_list=params_called_list)
+                            if not tmp:
+                                if active_token_for_symbol == str(s_laplace_sym_global) or active_token_for_symbol.lower() == 's': expr += str(s_laplace_sym_global); continue
+                                if active_token_for_symbol.lower() == 'omega': expr += str(s_laplace_sym_global); continue
+                                # If after stripping units, the remaining symbol is not found, it's an error.
+                                raise scs_errors.ScsParameterError("Can't find definition for parameter: %s (processed from %s)" % (active_token_for_symbol, token))
                             expr += tmp
                             continue
-                    if token in evaluated_paramsd:
-                        expr += str(evaluated_paramsd[token])
-                    else:
-                        raise scs_errors.ScsParameterError("Can't find definition for parameter: %s" % token)
-                elif reg_only_numeric_eng.match(token):
-                    m = reg_only_numeric_eng.search(token)
-                    expr += m.group('number') + "*" + str(suffixd[m.group('suffix')])
-                else:
-                    expr += token
+                    if active_token_for_symbol in evaluated_paramsd:
+                        expr += str(evaluated_paramsd[active_token_for_symbol])
+                    else: # Should not be reached if logic above is correct
+                        if active_token_for_symbol == str(s_laplace_sym_global) or active_token_for_symbol.lower() == 's': expr += str(s_laplace_sym_global); continue
+                        if active_token_for_symbol.lower() == 'omega': expr += str(s_laplace_sym_global); continue
+                        raise scs_errors.ScsParameterError("Parameter %s (processed from %s) evaluated to None or still not found." % (active_token_for_symbol, token))
+                elif reg_only_numeric_eng.match(processed_token):
+                    m = reg_only_numeric_eng.search(processed_token)
+                    num_part = m.group('number') if m.group('number') else "1" # If only suffix like "k", treat as "1k"
+                    suffix_val = suffixd.get(m.group('suffix'))
+                    if suffix_val is not None:
+                        expr += num_part + "*" + str(suffix_val)
+                    else: # Should not happen if reg_only_numeric_eng matched with a valid suffix from its list
+                        logging.warning(f"Unknown suffix {m.group('suffix')} in token '{processed_token}' (from '{token}'). Using token as is.")
+                        expr += processed_token
+                elif reg_numeric.match(processed_token): # Plain number, no suffix
+                    expr += processed_token
+                else: # Fallback for anything else (e.g. operators, or if token was an unhandled mix)
+                    expr += processed_token # Original token, not processed_token, if stripping made it invalid? Or error?
+                                          # Sticking with processed_token. If it's an operator, it's fine.
+                                          # If it's a malformed remnant, sympify will catch it later.
         return expr
 
-    if params_called_list is None:
-        params_called_list = []
+    if params_called_list is None: params_called_list = []
+    param_value_str = paramsd.get(param, str(param))
 
-    if paramsd[param] == param:  # symbol definition
+    if isinstance(param_value_str, str) and param_value_str.startswith('{') and param_value_str.endswith('}'):
+        param_value_str = param_value_str[1:-1]
+
+    if param_value_str == param and param not in paramsd:
         return sympy.symbols(param)
     else:
-        tokens = parse_param_expresion(paramsd[param])
+        tokens = parse_param_expresion(param_value_str) # This call is now valid
         return expand(tokens)
 
-
-def evaluate_params(paramsd, parent=None):
-    """ Evaluate parameters expresion to their values or symbols expresions
-        
-        paramsd: dictionary of parameters to be evaluated
-        
-        parent: a parent circuit to the caller, where we might look for defintions of paramters in the expresions
-        
-        Function takes the dictionary and try to evaluate each parameter one by one. Returns dictionary of evaluated
-        parameters.
-
-    """
+def evaluate_params(paramsd, parent=None, instance_context=None):
     evaluated_paramsd = {}
-    for param, param_str in paramsd.iteritems():
-        if param not in evaluated_paramsd:
-            tmp = evaluate_param(param, paramsd, evaluated_paramsd, parent, [param])
-            if tmp:
-                evaluated_paramsd.update({param: sympy.sympify(tmp,sympy.abc._clash)})
-    return evaluated_paramsd
+    # Build initial context by copying parent's evaluated params, then instance's (passed on X-line)
+    # This establishes hierarchy: instance > parent > grandparent etc.
+    # Local .PARAM definitions (in paramsd argument) will then be evaluated using this context.
+
+    # Start with an empty context for the current level's .PARAM definitions
+    # Hierarchical lookup will be handled by evaluate_param -> expand -> get_parent_evaluated_param
+
+    # If instance_context is provided (it's the 'inst' object being built),
+    # its paramsd might already have X-line evaluated parameters. These should be available.
+    # And parent.paramsd are from .PARAM of parent subcircuit definitions.
+
+    # The context for sympifying the final expression string for a parameter
+    # should include already evaluated parameters at the current level.
+
+    sympify_context = {**SYMPYFY_LOCALS_BASE}
+    if instance_context and instance_context.paramsd: # Parameters from X-line, already Sympy objects
+        for k,v in instance_context.paramsd.items():
+            sympify_context[str(k.name if hasattr(k,'name') else k)] = v
+    if parent and parent.paramsd: # Parameters from parent's definition, already Sympy objects
+         for k,v in parent.paramsd.items():
+            key_str = str(k.name if hasattr(k,'name') else k)
+            if key_str not in sympify_context : # Don't override X-line params
+                sympify_context[key_str] = v
 
 
-def evaluate_passed_params(paramsd, inst, evaluated_paramsd=None):
-    """ Evaluate parameters expresion passed to subinstance to their values or symbols expresions
-        
-        paramsd: dictionary of parameters to be evaluated (name expresion strings pairs)
-
-        inst: instance which instatiates new subciruit or some of its parents
-        
-        evaluated_paramsd: allready evaluated parameters (name value pairs)
-        
-        Function takes the dictionary and try to evaluate each parameter one by one. Returns dictionary of evaluated
-        parameters.
-
-    """
-    if evaluated_paramsd is None:
-        evaluated_paramsd = {}
-
-    for param, param_str in paramsd.iteritems():
-        if param not in evaluated_paramsd:
-            tmp = evaluate_expresion(param_str, inst.paramsd)
-            if tmp:
-                evaluated_paramsd.update({param: sympy.sympify(tmp,sympy.abc._clash)})
-            elif inst.parent:
-                evaluate_passed_params({param: paramsd}, inst.parent, evaluated_paramsd)
-    return evaluated_paramsd
-
-
-def parse_analysis_expresion(expresion):
-    """ Parses expresion for analysis
-        
-        expresion: string to be parsed
-
-        Function parses the expresion. Expresion should be mathematical construct. Could contain variable names, numbers
-        and operators, round brackets and functions from the set of v(),i(),isub(). Function returns grammatical tokens
-        for this expresion.
-    """
-    expresion0 = expresion
-    expresion.strip()
-    tokens = []
-    while expresion:
-        m = reg_numeric_eng.search(expresion)
-        if not m:
-            m = reg_numeric.search(expresion)
-        if not m:
-            m = reg_operator.search(expresion)
-        if not m:
-            m = reg_function.search(expresion)
-        if not m:
-            m = reg_symbols.search(expresion)
-        if m:
-            tokens.append(m.group('token'))
-        else:
-            m = reg_brackets.search(expresion)
-            if m:
+    for param, param_str in paramsd.items():
+        # Only evaluate if not already in evaluated_paramsd from a higher scope (e.g. X-line)
+        # This 'evaluated_paramsd' is local to this function call for this level's .PARAMs
+        if param not in evaluated_paramsd :
+            # evaluate_param will use instance_context and parent for lookups if param_str contains other symbols
+            tmp_expr_str = evaluate_param(param, paramsd, evaluated_paramsd, parent, [param], instance_context=instance_context)
+            if tmp_expr_str is not None:
                 try:
-                    tokens.append(parse_analysis_expresion(m.group('token')))
-                except scs_errors.ScsParameterError:
-                    raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion0)
-        if not m:
-            raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion0)
-        else:
-            expresion = m.group(m.lastindex)  # rest of the expression
+                    # Build specific locals for this sympify, including already evaluated params from this level
+                    current_level_sympify_locals = {**sympify_context, **evaluated_paramsd}
+                    # Ensure keys are strings
+                    final_locals = {k_s: v_val for k_s, v_val in current_level_sympify_locals.items() if isinstance(k_s, str)}
+                    for k_sym_loc, v_val_loc in current_level_sympify_locals.items():
+                        if hasattr(k_sym_loc, 'name') and k_sym_loc.name not in final_locals:
+                            final_locals[k_sym_loc.name] = v_val_loc
 
-    return tokens
+                    evaluated_paramsd[param] = sympy.sympify(tmp_expr_str, locals=final_locals)
+                except (sympy.SympifyError, TypeError) as e_sympify:
+                    if isinstance(tmp_expr_str, sympy.Expr): evaluated_paramsd[param] = tmp_expr_str
+                    else:
+                        logging.warning(f"Could not sympify parameter {param} from expr '{tmp_expr_str}'. Err: {e_sympify}")
+                        evaluated_paramsd[param] = tmp_expr_str
+    return evaluated_paramsd
 
+def evaluate_passed_params(paramsd_on_x_line, inst_calling_subcircuit):
+    evaluated_passed_params = {}
+    for param_name, raw_expr_str in paramsd_on_x_line.items():
+        try:
+            rhs_sympy_expr = evaluate_expresion(raw_expr_str,
+                                                inst_calling_subcircuit.paramsd,
+                                                inst_calling_subcircuit.parent)
+            evaluated_passed_params[param_name] = rhs_sympy_expr
+        except Exception as e:
+            logging.error(f"Error evaluating passed parameter {param_name}='{raw_expr_str}' for subcircuit. {e}")
+            evaluated_passed_params[param_name] = sympy.Symbol(param_name + "_passed_eval_error")
+    return evaluated_passed_params
 
-def parse_param_expresion(expresion):
-    """ Parses expresion for parameters
-        
-        expresion: string to be parsed
+def evaluate_expresion(expresion_str, instance_paramsd_context, parent_instance_context=None):
+    if isinstance(expresion_str, sympy.Expr): return expresion_str
+    if not isinstance(expresion_str, str): expresion_str = str(expresion_str)
+    original_expresion_str_for_fallback = expresion_str
 
-        Function parses the expresion. Expresion should be mathematical construct. Could contain variable names, numbers
-        and operators, round brackets. Function returns grammatical tokens for this expresion.
-    """
-    expresion.strip()
-    tokens = []
-    while expresion:
-        m = reg_numeric_eng.search(expresion)
-        if not m:
-            m = reg_numeric.search(expresion)
-        if not m:
-            m = reg_operator.search(expresion)
-        if not m:
-            m = reg_symbols.search(expresion)
-        if m:
-            tokens.append(m.group('token'))
-        else:
-            m = reg_brackets.search(expresion)
-            if m:
-                tokens.append(parse_param_expresion(m.group('token')))
-        if not m:
-            raise scs_errors.ScsParameterError("Can't parse expresion: %s" % expresion)
-        else:
-            expresion = m.group(m.lastindex)  # rest of the expression
+    if expresion_str.startswith('{') and expresion_str.endswith('}'):
+        expresion_str = expresion_str[1:-1]
 
-    return tokens
+    tokens = parse_param_expresion(expresion_str)
 
-
-def get_parent_evaluated_param(param, parent):
-    """ Functions get value of paramer or parent of a parent circuit
-        
-        param: name of a paramter which value we would like to get
-        parent: parent of circuit where we are looking for parameter value
-
-        If param definition is not find in parent, we call this function again for its parent of a parent. 
-        If no defintion is present and there is no parent to be called, empty string is returned.
-    """
-    if parent:
-        if param in parent.paramsd:
-            return str(parent.paramsd[param])
-        return get_parent_evaluated_param(param, parent.parent)
-    return ''
-
-
-def results2values(tokens, instance):
-    """ Translates tokens to their values and makes a single expresion out of them.
-
-        tokens: gramatical tokens
-      
-        instance: instance object which should hold value of parametrs or which could be called for function of it's
-        solution (like v() etc.)
-
-        It translate tokens list into one expresion. Single token could also be a list in which way it would be
-        translated in whole expresion inside the bracket.
-    """
-    ret_str = ''
-    for token in tokens:
-        if isinstance(token, list):
-            ret_str += '(' + results2values(token, instance) + ')'
-        else:
-            if reg_only_function.match(token):
-                m = reg_only_function.search(token)
-                if m.group('function') == 'v':
-                    arguments = m.group('argument').split(',')
-                    ret_str += '(' + str(instance.v(*tuple(arguments))) + ')'
-                elif m.group('function') == 'i':
-                    ret_str += '(' + str(instance.i(m.group('argument'))) + ')'
-                elif m.group('function') == 'isub':
-                    ret_str += '(' + str(instance.isub(m.group('argument'))) + ')'
-                else:
-                    raise scs_errors.ScsInstanceError("Can't find function: %s" % token)
-            elif reg_only_symbol.match(token):  # symbol token
-                if token in instance.paramsd:
-                    ret_str += str(instance.paramsd[token])
-                else:
-                    raise scs_errors.ScsInstanceError("Can't find definition for parameter: %s" % token)
-            elif reg_only_numeric_eng.match(token):
-                m = reg_only_numeric_eng.search(token)
-                ret_str += m.group('number') + "*" + str(suffixd[m.group('suffix')])
+    def expand_tokens_with_context(_tokens):
+        expr_parts = []
+        for token in _tokens:
+            if isinstance(token, list):
+                expr_parts.append(f"({expand_tokens_with_context(token)})")
             else:
-                ret_str += token
-    return ret_str
-
-
-def params2values(tokens, valuesd):
-    """ Translates tokens to their values and makes a single expresion out of them.
-
-        tokens: gramatical tokens
-        
-        valuesd: dictionary of parametr:value pairs
-
-        It translate tokens list into one expresion. Single token could also be a list in which way it would be
-        translated in whole expresion inside the bracket.
-    """
-    ret_str = ''
-    for token in tokens:
-        if isinstance(token, list):
-            ret_str += '(' + params2values(token, valuesd) + ')'
-        else:
-            if reg_only_symbol.match(token):  # symbol token
-                if token in valuesd:
-                    ret_str += str(valuesd[token])
+                if reg_only_symbol.match(token):
+                    # Check current instance's parameters first
+                    if token in instance_paramsd_context:
+                        expr_parts.append(str(instance_paramsd_context[token]))
+                    # Then try hierarchical lookup via parent
+                    else:
+                        val_from_parent = get_parent_evaluated_param(token, parent_instance_context, instance_context=instance_paramsd_context)
+                        if val_from_parent: expr_parts.append(val_from_parent)
+                        # Check for global s and omega from symbolic_components
+                        elif token == str(s_laplace_sym_global) or token.lower() == 's': expr_parts.append(str(s_laplace_sym_global))
+                        elif token.lower() == 'omega': expr_parts.append(str(s_laplace_sym_global))
+                        else: expr_parts.append(token) # Keep as symbol if not found anywhere
+                elif reg_only_numeric_eng.match(token):
+                    m = reg_only_numeric_eng.search(token)
+                    if m.group('number') is not None:
+                         expr_parts.append(m.group('number') + "*" + str(suffixd[m.group('suffix')]))
+                    else: expr_parts.append(token)
                 else:
-                    raise scs_errors.ScsInstanceError("Can't find definition for parameter: %s" % token)
-            elif reg_only_numeric_eng.match(token):
-                m = reg_only_numeric_eng.search(token)
-                ret_str += m.group('number') + "*" + str(suffixd[m.group('suffix')])
-            else:
-                ret_str += token
-    return ret_str
+                    expr_parts.append(token)
+        return "".join(expr_parts)
 
-
-def evaluate_expresion(expresion, valuesd):
-    """ Evaluates expresion into a value
-
-        expresion: string to be evaluated 
+    final_expr_str = expand_tokens_with_context(tokens)
+    try:
+        current_sympify_locals = {**SYMPYFY_LOCALS_BASE}
+        if instance_paramsd_context:
+            for k,v_loc in instance_paramsd_context.items():
+                key_str = str(k.name if hasattr(k, 'name') else k)
+                current_sympify_locals[key_str] = v_loc
         
-        valuesd: dictionary of parametr:value pairs
-
-        Evaluate expresion into tokens and than change it to a single value or symbolic expresion
-    """
-    tokens = parse_param_expresion(expresion)
-    return sympy.sympify(params2values(tokens, valuesd),sympy.abc._clash)
+        return sympy.sympify(final_expr_str, locals=current_sympify_locals)
+    except Exception as e:
+        logging.warning(f"Failed to sympify expr '{final_expr_str}' from '{expresion_str}'. Err: {e}. Returning as symbol.")
+        return sympy.Symbol(original_expresion_str_for_fallback)
 
 
 def strip_comment(in_str):
-    """ Strip comments from a string
-
-        str: string to be striped of comments
-        
-        Return string with tailing comments ($ comment) striped"""
+    if in_str.startswith('$'): return ""
     m = reg_comment.search(in_str)
-    return m.group('not_comment') if m else in_str
-
+    return m.group('not_comment').strip() if m else in_str.strip()
 
 def get_unnamed_params(in_str):
-    """ Gets list of unnamed parameters from string 
-
-        str: string where we look for parameters
-
-        The string is changed in place, so when we find a parameter on string we trim it from string.
-        String could be something like this
-        .foo bar1 'bar2' bar3
-        where return would be [bar1, bar2, bar3]
-        and str would be: .foo
-    """
     in_str = in_str.strip()
     param_l = []
     while in_str:
-        in_str.strip()
+        in_str = in_str.strip()
         m = reg_unnamed_param_with_rest.search(in_str)
         if m:
-            in_str = m.group('rest').strip()
-            m2 = reg_unnamed_param.search(m.group('param'))
+            in_str = m.group('rest').strip(); m2 = reg_unnamed_param.search(m.group('param'))
             param_l.append(m2.group('value'))
             continue
         m = reg_simple_param.search(in_str)
         if m:
-            in_str = m.group('rest').strip()
-            param_l.append(m.group('param'))
+            in_str = m.group('rest').strip(); param_l.append(m.group('param'))
         else:
-            param_l.append(in_str)
-            break
+            param_l.append(in_str); break
     return list(reversed(param_l))
 
-
 def get_params(in_str):
-    """ Get dictionary of parameters from the end of string.
-
-        str: string where we look for parameters
-
-        Get dictionary of params from end of string and modyfies str in place to just hold rest of the string not being
-        named parameters. So string like .foo bar1 bar2 bar3 = spam1 bar4 = 'spam2' would return
-         {bar3: spam1, bar4: spam2} and str would be: .foo bar1 bar2
-    """
     in_str = in_str.strip()
     param_d = {}
-
     while True:
         m = reg_param_with_rest.search(in_str)
         if m:
-            in_str = m.group('rest').strip()
-            m2 = reg_param.search(m.group('param'))
+            in_str = m.group('rest').strip(); m2 = reg_param.search(m.group('param'))
             param_d.update({m2.group('name').strip(): m2.group('value').strip()})
         else:
             m = reg_param_wo_brackets.search(in_str)
             if m:
-                in_str = m.group('rest').strip()
-                param_d.update({m.group('name').strip(): m.group('value').strip()})
-        if not m:
-            break
-
+                in_str = m.group('rest').strip(); param_d.update({m.group('name').strip(): m.group('value').strip()})
+        if not m: break
     return param_d, in_str
 
-
 def add_element(param_d, param_l, name, circuit):
-    """ Adds element to circuit
-        
-        param_d: Named parametrs dictionary for element
-
-        param_l: positional parameters list for element
-
-        name: name of an element to add
-        
-        circuit: circuit where we are adding an element
-
-        Function is on the list of function for getNameFunctionFromHead. It adds a element to circuit and returns this
-        circuit.
-    """
     circuit.add_element(name, scs_circuit.Element(param_l, param_d))
     return circuit
 
+def add_subcircuit(param_d_from_line, param_l_from_line, name_keyword, circuit_obj): # name_keyword is "subckt"
+    subckt_name = param_l_from_line.pop(0) # e.g. "MY_RC_FILTER"
 
-def add_subcircuit(param_d, param_l, name, circuit):
-    """ Adds subcircuit to circuit
-        
-        param_d: Named parametrs dictionary for element
+    ports = []
+    subckt_params_dict = {} # For params defined with PARAM keyword on .SUBCKT line
 
-        param_l: positional parameters list for element
+    param_keyword_found = False
+    # Iterate through the rest of param_l_from_line to find ports and PARAM keyword
+    idx = 0
+    while idx < len(param_l_from_line):
+        item_val = param_l_from_line[idx]
+        if item_val.upper() == 'PARAM':
+            param_keyword_found = True
+            # The items after PARAM are parameter assignments
+            param_defs_list = param_l_from_line[idx+1:]
+            # Use similar logic as add_param for parsing "name=value" pairs
+            # This assumes params are like "R_SUBCKT=1k", "C_SUBCKT=1u"
+            current_param_idx = 0
+            while current_param_idx < len(param_defs_list):
+                param_item_str = param_defs_list[current_param_idx].strip()
+                if '=' in param_item_str:
+                    p_name, p_val = param_item_str.split('=',1)
+                    subckt_params_dict[p_name.strip()] = p_val.strip()
+                else:
+                    logging.warning(f"Parameter definition '{param_item_str}' on .SUBCKT line for {subckt_name} is malformed. Expected 'name=value'.")
+                current_param_idx += 1
+            break # All items after PARAM keyword are processed as params
+        else:
+            ports.append(item_val) # This is a port name
+        idx += 1
 
-        name: name of an element to add
-        
-        circuit: circuit where we are adding an element
+    # param_d_from_line usually contains parameters defined with key=value syntax on the .SUBCKT line itself,
+    # which is not standard for SPICE .SUBCKT parameters (they use PARAM keyword).
+    # However, if any were parsed into param_d_from_line, merge them.
+    # For now, only parameters after PARAM keyword are put into subckt_params_dict.
+    if param_d_from_line:
+        logging.warning(f"Parameters found in key=value form on .SUBCKT line for {subckt_name}: {param_d_from_line}. These are not standard and might not be handled as expected. Use PARAM keyword.")
+        # Example: .SUBCKT MYSUB N1 N2 RVAL=1K ; RVAL=1K would be in param_d_from_line
+        # Merge them if necessary, but standard is PARAM keyword.
+        # subckt_params_dict.update(param_d_from_line) # Or prioritize one over other if conflicts
 
-        Function is on the list of function for getNameFunctionFromHead. It adds a element to circuit and returns this
-        circuit.
-    """
-
-    name = param_l.pop()
-    circuit.add_subcircuit(name, param_l, param_d)
-    return circuit.subcircuitsd[name]
-
+    circuit_obj.add_subcircuit(subckt_name, ports, subckt_params_dict)
+    return circuit_obj.subcircuitsd[subckt_name]
 
 def include_file(param_d, param_l, name, circuit):
-    """ Includes contents of another file into currentling parsing file.
-        
-        param_d: dummy - ignored
-
-        param_l: on first position of the list should be name of included file, rest is ignored
-
-        name: dummy - ignored
-        
-        circuit: cirtuit which we are gonna parse contents of the included file
-
-        Function is on the list of function for getNameFunctionFromHead. It includes contents of another file into
-        parsing process. It just start parsing this file. Returns circuit (could be modified while parsing include file)
-    """
+    if not param_l : raise scs_errors.ScsParserError(".include statement needs a filename.")
     parse_file(param_l[0], circuit)
     return circuit
 
-
 def add_param(param_d, param_l, name, circuit):
-    """ Adds parameter defintion to circuit
-        
-        param_d: Named parametrs dictionarionary
-
-        param_l: positional parameters list, will be translated into symbols
-
-        name: dummy - ignored
-        
-        circuit: circuit where we are adding an parameter definition
-
-        Function is on the list of function for getNameFunctionFromHead. It adds a parameter definition to circuit and
-        returns this circuit. Should be either one element dictionary or one element parameter list, else it doesn't
-        add any defition
-    """
-    for param in param_l:
-        circuit.parametersd.update({param: param})
     circuit.parametersd.update(param_d)
+    i = 0
+    while i < len(param_l):
+        param_item = param_l[i].strip()
+        if '=' in param_item:
+            p_name, p_val = param_item.split('=',1)
+            circuit.parametersd.update({p_name.strip(): p_val.strip()})
+            i += 1
+        elif i + 1 < len(param_l) and not any(op in param_l[i+1] for op in ['=','{','(']):
+            circuit.parametersd.update({param_item: param_l[i+1].strip()})
+            i += 2
+        else:
+             circuit.parametersd.update({param_item: param_item})
+             i += 1
     return circuit
-
 
 def add_analysis(param_d, param_l, name, circuit):
-    """ Adds element to top circuit
-        
-        param_d: Named parametrs dictionary for analysis
-
-        param_l: positional parameters list for analysis
-
-        name: name of an analysis to add
-        
-        circuit: circuit where we are adding an analysis
-
-        Function is on the list of function for getNameFunctionFromHead. It adds an analysis to circuit and returns this
-        circuit.
-    """
-    if not circuit.parent:  # Check if top circuit
-        circuit.analysisl.append(scs_circuit.Analysis(name, param_l, param_d))
+    current_c = circuit
+    while current_c.parent is not None: current_c = current_c.parent
+    if isinstance(current_c, scs_circuit.TopCircuit):
+        current_c.analysisl.append(scs_circuit.Analysis(name, param_l, param_d))
+    else: logging.warning(f"Analysis line '.{name}' found outside of top-level circuit. Ignored.")
     return circuit
-
 
 def change_to_parent_circuit(param_d, param_l, name, circuit):
-    """ Change working circuit to parent circuit
-        
-        param_d: dummy - ignored
-
-        param_l: dummy - ignored
-
-        name: dummy - ignored
-        
-        circuit: its parent will be returned
-
-        Function is on the list of function for getNameFunctionFromHead. When .ends will be encountered in file this
-        function will be executed. It will change the working circuit while parsing to parent of current circuit.
-
-    """
-    return circuit.parent
-
+    if circuit.parent is None and name.lower() == 'end':
+        return None
+    if circuit.parent is None and name.lower() == 'ends':
+        logging.warning(".ENDS called on top-level circuit. No parent to return to.")
+        return circuit
+    return circuit.parent if circuit.parent is not None else circuit
 
 def get_name_function_from_head(head):
-    """ Return appropriate function depending on head string
-
-        head: string with header of a line, depending on it appropriate funcition to deal with rest of the line will be
-        returned
-
-        Depending if a line which header is provided as input is a control sentence (.foo) or element defintion
-        (Xname etc.) will return appriopriate function to deal with rest of the line.
-    """
-    name, funct = head[1:], None
-    function_dict = {'param': add_param,
-                     'include': include_file,
-                     'subckt': add_subcircuit,
-                     'measure': add_analysis,
-                     'ac': add_analysis,
-                     'dc': add_analysis,
-                     'ends': change_to_parent_circuit}
-    if head[0] == '.':
-        if name in function_dict:
-            funct = function_dict[name]
-        else:
-            raise scs_errors.ScsParserError("Unknown control sentence: %s" % head)
-    elif head[0] in \
-            ('R', 'r', 'L', 'l', 'C', 'c', 'V', 'v', 'I', 'i', 'E', 'e', 'H', 'h', 'G', 'g', 'F', 'f', 'X', 'x'):
-        name, funct = head, add_element
-    elif head[0] == '*':  # Comment
-        pass
+    name_key = head[1:].lower()
+    funct = None
+    function_dict = {'param': add_param, 'include': include_file, 'subckt': add_subcircuit,
+                     'measure': add_analysis, 'ac': add_analysis, 'dc': add_analysis, 'tran': add_analysis,
+                     'ends': change_to_parent_circuit, 'options':add_param, 'model':add_param, 'end': change_to_parent_circuit}
+    if head.startswith('.'):
+        if name_key in function_dict: funct = function_dict[name_key]
+        else: logging.warning(f"Unknown control sentence: {head}"); return head, None
+        return name_key, funct
+    elif head[0].upper() in ('R','L','C','V','I','E','H','G','F','X'):
+        return head, add_element
+    elif head.startswith('*') or head.startswith('$'):
+        return head, None
     else:
-        raise scs_errors.ScsParserError("Unknown element: %s" % head)
-    return name, funct
-
+        logging.warning(f"Unknown element or line type: {head}"); return head, None
 
 def parseline(line, circuit):
-    """ Parses a single line of input file
-
-        line: string from a file to be parsed
-
-        circuit: circuit for whihc parsing is performed
-
-        Take line (string) and circuit performs action depending on the head of the line.
-        Returns circuit - could be parrent,same or child of what was on the input.        
-    """
+    original_line_for_err_report = line
     line = strip_comment(line)
-    param_d, line = get_params(line)
-    param_l = get_unnamed_params(line)
-
+    if not line: return circuit
+    param_d, line_after_named_params = get_params(line)
+    param_l = get_unnamed_params(line_after_named_params)
     head = None
-    funct = None
-    name = None
-    if param_l:
-        head = param_l.pop(0)
+    if param_l: head = param_l.pop(0).strip()
     if head:
-        name, funct = get_name_function_from_head(head.strip())
-    if funct:
-        return funct(param_d, param_l, name, circuit)
+        name_from_map, funct = get_name_function_from_head(head)
+        if funct: return funct(param_d, param_l, name_from_map, circuit)
+        elif head and not (head.startswith('*') or head.startswith('$')):
+            logging.warning(f"No function to handle line starting with '{head}' in: {original_line_for_err_report}")
     return circuit
 
-
-def parse_file(filename, circuit):
-    """ Parses input file into a circuit
-
-        filename - path to a file to be parsed
-
-        circuit - a circuit which will parse a file into
-    
-        Takes filename, tries to open the file, read the file line by line, creating circuit on the go from it. 
-        Returns circuit. Will return None if any problems occured.
-    """
-    current_cir = circuit
-    line_number = 1
+def parse_file(filename, circuit=None):
+    if circuit is None:
+        top_circuit_obj = scs_circuit.TopCircuit()
+        top_circuit_obj.name = os.path.splitext(os.path.basename(filename))[0]
+        circuit = top_circuit_obj
+    current_parsing_circuit = circuit
+    line_number = 0
     try:
-        with open(filename, 'r') as fil:
-            next_line = fil.readline()
-            for line in fil:
-                current_line = next_line
-                next_line = line
-                while next_line and next_line[0] == '+':
-                    current_line += next_line[1:]
-                    next_line = fil.readline()
-                circuit = parseline(current_line, circuit)
-                line_number += 1
-                if circuit is None:
-                    break
-        if next_line and circuit:
-            circuit = parseline(next_line, circuit)
-        if circuit is current_cir:
-            logging.error("No .end statement on the end of file!")
-        return current_cir
-    except scs_errors.ScsParserError, e:
-        logging.error("Syntax error in file: %s on line: %d \n %s" % (filename, line_number, e))
+        with open(filename, 'r') as fil: content_lines = fil.readlines()
+        idx = 0
+        while idx < len(content_lines):
+            current_line_segment = content_lines[idx]
+            line_number = idx + 1; idx += 1
+            full_line_for_parsing = current_line_segment.rstrip('\n\r')
+            while idx < len(content_lines) and content_lines[idx].strip().startswith('+'):
+                full_line_for_parsing += content_lines[idx].strip()[1:]
+                idx += 1
+            clean_line = full_line_for_parsing.strip()
+            if not clean_line or clean_line.startswith('*') or clean_line.startswith('$'): continue
+            new_context_circuit = parseline(clean_line, current_parsing_circuit)
+            if new_context_circuit is None:
+                 if current_parsing_circuit.parent is None and clean_line.strip().upper() == '.END':
+                     logging.info(f"Reached .END for top-level circuit {current_parsing_circuit.name}. End of parsing.")
+                     break
+                 else:
+                     logging.error(f"Critical error: parseline returned None at line {line_number}: {clean_line}.")
+                     return circuit
+            current_parsing_circuit = new_context_circuit
+            if current_parsing_circuit is None: break
+        if current_parsing_circuit is not circuit and circuit.parent is None : # Check if still in a subcircuit
+            if hasattr(current_parsing_circuit, 'name'):
+                 logging.warning(f"Parsing finished, but context is still in subcircuit '{current_parsing_circuit.name}'. Missing '.ENDS'?")
+        return circuit
+    except scs_errors.ScsParserError as e:
+        logging.error(f"Parser error in file '{filename}' near line {line_number}: {e}")
         return None
-    except IOError, e:
-        logging.error(e)
+    except IOError as e:
+        logging.error(f"IOError accessing file '{filename}': {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error parsing file '{filename}' near line {line_number}: {e}")
         return None
 
-
-__all__ = [add_analysis, add_element, add_param, add_subcircuit, change_to_parent_circuit,
-           get_name_function_from_head, get_parent_evaluated_param, get_params, get_unnamed_params,
-           evaluate_expresion, evaluate_param, evaluate_params, include_file, params2values, parse_analysis_expresion,
-           parse_param_expresion, parse_file, parseline, strip_comment]
+__all__ = [
+    'add_analysis', 'add_element', 'add_param', 'add_subcircuit',
+    'change_to_parent_circuit', 'get_name_function_from_head',
+    'get_parent_evaluated_param', 'get_params', 'get_unnamed_params',
+    'evaluate_expresion', 'evaluate_param', 'evaluate_params', 'evaluate_passed_params',
+    'include_file', 'parse_analysis_expresion',
+    'parse_param_expresion', 'parse_file', 'parseline', 'strip_comment'
+]

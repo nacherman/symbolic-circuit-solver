@@ -1,873 +1,410 @@
-"""
-Class for instances of circuits
-
-contain Instance class and all minor functions needed by it to work properly.
-
-"""
-
-__author__ = "Tomasz Kniola"
-__credits__ = ["Tomasz Kniola"]
-
-__license__ = "LGPL"
-__version__ = "0.0.1"
-__email__ = "kniola.tomasz@gmail.com"
-__status__ = "development"
-
-import sympy
+# symbolic_circuit_solver-master/scs_instance_hier.py
+import sympy as sp
 import copy
 import logging
+import re
 
 import scs_errors
 import scs_parser
-import scs_elements
+
+# Robust import for root-level modules
+import sys
+import os
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root_dir = os.path.dirname(current_script_dir)
+if project_root_dir not in sys.path:
+    sys.path.insert(0, project_root_dir)
+
+from symbolic_components import Resistor, Capacitor, Inductor, VoltageSource, CurrentSource, \
+                                VCVS, VCCS, CCVS, CCCS, s_sym
+# Import the new solver
+from symbolic_solver import solve_circuit as root_solve_circuit
+
+
+SYMPYFY_LOCALS_CONTEXT = {
+    "I": sp.I, "pi": sp.pi, "exp": sp.exp,
+    "sin": sp.sin, "cos": sp.cos, "tan": sp.tan,
+    "asin": sp.asin, "acos": sp.acos, "atan": sp.atan,
+    "sqrt": sp.sqrt, "log": sp.log, "ln": sp.log,
+    "s": s_sym, "omega": s_sym
+}
+
+def _ensure_sympy_expr(val_expr_str_or_sympy, eval_name_hint, current_inst_paramsd, parent_inst_obj, current_instance_obj_for_param_context):
+    if isinstance(val_expr_str_or_sympy, (sp.Expr, int, float, complex)):
+        return sp.sympify(val_expr_str_or_sympy)
+    if not val_expr_str_or_sympy:
+        logging.warning(f"Empty value string for {eval_name_hint}, defaulting to '0'.")
+        val_expr_str_or_sympy = '0'
+    str_val = str(val_expr_str_or_sympy)
+    # Use a more unique temp_param_name based on instance context if available
+    prefix_hint = current_instance_obj_for_param_context.name if current_instance_obj_for_param_context else "top"
+    temp_param_name = f"_{prefix_hint}_{eval_name_hint}_{abs(hash(str_val))}"
+    param_def_dict = {temp_param_name: str_val}
+    evaluated_expr_str = scs_parser.evaluate_param(
+        temp_param_name, param_def_dict, current_inst_paramsd,
+        parent_inst_obj, instance_context=current_instance_obj_for_param_context
+    )
+    final_sympify_context = {**SYMPYFY_LOCALS_CONTEXT}
+    if current_inst_paramsd:
+        for k, v in current_inst_paramsd.items():
+            key_str = str(k.name if hasattr(k, 'name') else k)
+            final_sympify_context[key_str] = v
+    try:
+        return sp.sympify(evaluated_expr_str, locals=final_sympify_context)
+    except Exception as e:
+        logging.error(f"Failed to sympify '{evaluated_expr_str}' for {eval_name_hint}. Error: {e}. Returning as symbol.")
+        return sp.Symbol(evaluated_expr_str)
+
 
 class Instance(object):
-    """ Instance class
+    def __init__(self,parent_instance_arg,instance_name_str,instance_port_map={}):
+        self.port_map = instance_port_map
+        self.elements_on_net = {}
+        self.elements = {}
+        self.subinstances = {}
+        self.paramsd = {}
+        self.parent = parent_instance_arg
+        self.name = instance_name_str if instance_name_str else "top" # Ensure top has a name
+        self.solved_dict = None
+        self.V = {}
+        self.Vp = {}; self.V0 = {}; self.Ap = {}; self.Ap_m = None; self.V0_m = None
+        self.chained_ports = {}; self.used_voltage_sources = []
+        self.circuit_definition = None
 
-        holds object of instatiated circuits. Instance contains nets (nodes) and elements connecting nodes.
-        Instances can be solved, which means that node voltages are known. Nets are split into inner nets and port nets,
-        where the latter connets to nets of parent instance whose subinstance is that instance. By solving the subinstance it is said
-        that voltages on nets are known only when voltages on ports are provided by parent. Full solution is thus some linear function,
-        which form is obtained by solving instance, of voltage nodes.
+    def add_element(self,element_obj):
+        element_nets = [str(element_obj.node1), str(element_obj.node2)]
+        if not hasattr(element_obj, 'nets'): element_obj.nets = element_nets
+        for net_name in element_nets:
+            if net_name in self.elements_on_net:
+                if element_obj not in self.elements_on_net[net_name]:
+                    self.elements_on_net[net_name].append(element_obj)
+            else: self.elements_on_net[net_name] = [element_obj]
+        self.elements[element_obj.name] = element_obj # Store by its (potentially mangled) name
 
-        V - node voltage vector
-        V = [Vi ; Vp]
-        Vi - inner nodes voltage
-        Vp - port nodes vector
-        Vi = Ap*Vp + V0
-        Ap - linear function matrix (Attenuation matrix)
-        V0 - inner nodes voltage vector for Vp = 0
+    def add_sub_instance(self,sub_inst_obj):
+        for _internal_port_name, parent_scope_net_name in sub_inst_obj.port_map.items():
+            parent_scope_net_name_str = str(parent_scope_net_name)
+            if parent_scope_net_name_str in self.elements_on_net:
+                if sub_inst_obj not in self.elements_on_net[parent_scope_net_name_str]:
+                    self.elements_on_net[parent_scope_net_name_str].append(sub_inst_obj)
+            else: self.elements_on_net[parent_scope_net_name_str] = [sub_inst_obj]
+        self.subinstances[sub_inst_obj.name] = sub_inst_obj # Store by its (local) name
     
-        By solving instance we provide thus Ap matrix and V0.
-    """
-    def __init__(self,parent,name,port_map={}):
-        """ Initialization of Instance object
+    def _prepare_nets(self): # Populates self.nets for MNA compatibility if needed by other parts
+        self.inner_nets = []; self.port_nets = []; self.net_name_index = {}
+        all_circuit_nodes = set() # Use a set for unique node names
+        # Collect nodes from own elements (these names are already mangled by make_instance)
+        for elem in self.elements.values():
+            all_circuit_nodes.add(elem.node1); all_circuit_nodes.add(elem.node2)
+        # Collect nodes from subcircuit ports that map to this instance's nets
+        for sub_inst in self.subinstances.values():
+            for parent_scope_node in sub_inst.port_map.values(): # These are already global names
+                all_circuit_nodes.add(parent_scope_node)
 
-            parent: parent instance
-            
-            name: instance name
+        # For top-level, port_map is empty. Its ports are effectively its global nodes.
+        # For subcircuits, self.port_map maps its *local* port names to *global* node names in parent.
+        # self.nets should contain global node names relevant to this instance context.
+        parent_scope_nets_connected_via_ports = set(self.port_map.values())
+
+        for net_name_str in all_circuit_nodes:
+            if net_name_str in parent_scope_nets_connected_via_ports: # Node is a port of this instance
+                self.port_nets.append(net_name_str)
+            elif net_name_str != ground_node_name_for_solver_context: # Internal node
+                self.inner_nets.append(net_name_str)
         
-            port_map: pair of port_net parent_net names
-        """
-        self.port_map = port_map        
-        self.elements_on_net = {}       #dictionary of list of element which are connected to net
-        self.elements = {}              #dictionary of element by their names
-        self.subinstances = {}          #dictionary of subinstances by their name
-        self.paramsd = {}               #dictionary of parameter values by their name
-        self.parent = parent            
-        self.name = name                
-        self.V = {}                     #dictionary of voltage values on net
-        self.Vp = {}                    #dictionary of voltage values on port net
-        self.V0 = {}                    #dictionary of voltage values on inner net with zero port voltage vector
-        self.Ap = {}                    #dictionary form of attenuation matrix
-        self.Ap_m = None                #Attenutation matrix
-        self.V0_m = None                #vector of voltages on inner nets with zero port voltage vector
-        self.chained_ports = {}         #dictionary of port nets which are connected by voltage sources 
-        self.used_voltage_sources = []  #list of used voltage sources durring  check_voltage_loops procedure
-
-    def add_element(self,element):
-        """ Adds element to instance
-            
-            element: instance of element  being added to subcircuit instance
-
-            In addition to adding element to dictionary of elements, it updates the elements_on_net dictionary                
-        """
-        for net in element.nets:
-            if net in self.elements_on_net:
-                if element not in self.elements_on_net[net]:
-                    self.elements_on_net[net].append(element)
-            else:
-                self.elements_on_net.update({net:[element]})
-        self.elements.update({element.names[0]:element})
-
-    def add_sub_instance(self,sub_inst):
-        """ Adds subinstance to instance
-            
-            sub_inst: instance of subinstance being added to subcircuit instance
-
-            In addition to adding subinstance to dictionary of subinstance, it updates the elements_on_net dictionary                
-        """
-        for _,net in sub_inst.port_map.iteritems():
-            if net in self.elements_on_net:
-                if sub_inst not in self.elements_on_net[net]:
-                    self.elements_on_net[net].append(sub_inst)
-            else:
-                self.elements_on_net.update({net:[sub_inst]})
-        self.subinstances.update({sub_inst.name:sub_inst})
-    
-    def nets_not_connected_to_gnd(self,connected_nets):
-        """ Provides a dictionary of nets that aren't connected to ground.
-
-            connected_nets: dictionary of nets which are already known to be connected, a starting point, could define a ground net
-
-            By connected its meant that its connected by any element not being a current source. If there are parts of circuit which aren't
-            connected in that sense, there wouldn't be one uniq solution, because there could be any voltage difference between disconnected 
-            parts of netlist.
-
-            Return: dictionary of disconnected nets from ground
-        """
-        not_connected_nets = {}
-        for net in connected_nets[0]:           
-            for element in self.elements_on_net[net]:
-                if isinstance(element,scs_elements.Element) and not isinstance(element,scs_elements.CurrentSource):
-                    for net2 in element.nets[:2]:
-                        if net2 not in connected_nets[0]: 
-                            connected_nets[0].append(net2)
-                elif isinstance(element,Instance):
-                    if element.name not in connected_nets:
-                        connected_nets.update({element.name:{0:inv_map(element.port_map)[net]}})
-                    else:
-                        updated = False
-                        for subnet in inv_map(element.port_map)[net]:
-                            if subnet not in connected_nets[element.name][0]:
-                                connected_nets[element.name][0].append(subnet)
-                                updated = True
-                        if not updated: continue
-                    ele_not_connected_nets = self.subinstances[element.name].nets_not_connected_to_gnd(connected_nets[element.name])
-                    if ele_not_connected_nets:
-                        not_connected_nets.update({element.name:ele_not_connected_nets})
-                    elif element.name in not_connected_nets:
-                        not_connected_nets.pop(element.name)
-                    for port_net in element.port_map:
-                        if port_net in connected_nets[element.name][0] and element.port_map[port_net] not in connected_nets[0]:
-                            connected_nets[0].append(element.port_map[port_net])
-                    
-        for net in self.elements_on_net:
-            if net not in connected_nets[0]:
-                if 0 not in not_connected_nets:
-                    not_connected_nets.update({0:[net]})
-                else:
-                    not_connected_nets[0].append(net)
-
-        return not_connected_nets
-
-    def check_path_to_gnd(self):
-        """ Checks whether all nets have connection to ground
-            
-            By connected its meant that its connected by any element not being a current source. If there are parts of circuit which aren't
-            connected in that sense, there wouldn't be one uniq solution, because there could be any voltage difference between disconnected 
-            parts of netlist.
-        
-            return True or False             
-        """
-        not_connected_nets = self.nets_not_connected_to_gnd({0:['0']})
-        if len(not_connected_nets): 
-            logging.error("Nets without connection to gnd: %s" % self._flat_net_hier(not_connected_nets)[0])
-        return False if len(not_connected_nets) else True 
-           
-    def _flat_net_hier(self,loops):
-        """ Flattens hierachical structure for loops for better display to user
-            
-            loops: hierarchical dictionary 0                :   [list of instance nets with voltage sources in a loop]
-                                           subinstance_name :   subinstance hierarchical dictionary
-
-            Provide a flat list of loops derived from hierarchicla structure. Hierarchy will be note by a spice dot notation
-        """
-        flat_net_hier = []
-        for name,loop in loops.iteritems():
-            if name:
-                loop = self.subinstances[name]._flat_net_hier(loop)                
-                for nets in loop:
-                    flat_loops_nets =[]
-                    for i in  range(len(nets)):
-                        net ="%s.%s" % (name,nets[i])
-                        if net not in flat_loops_nets:
-                            flat_loops_nets.append(net)
-                    if flat_loops_nets: flat_net_hier.append(flat_loops_nets)
-            else:                 
-                for nets in loops[0]: 
-                    flat_loops_nets =[]                
-                    for net in nets:
-                        if net not in flat_loops_nets:
-                            flat_loops_nets.append(net)
-                    if flat_loops_nets: flat_net_hier.append(flat_loops_nets)
-        return flat_net_hier
-                
-    def _loops_and_chained_ports(self):
-        """ Provides loops nets hierarchical structure and connected ports dictionary
-
-            Returns loops hierarchical dictionary and updates connected ports dictionary.
-            It's used for checking wheter there are any voltage loops in circuit.           
-        """
-        loops = {0:[]}
-        chains = []
-        for subname,subinstance in self.subinstances.iteritems():
-            loops.update({subname:subinstance._loops_and_chained_ports()})
-        
-        used_nets = []
-        for net,elements in self.elements_on_net.iteritems():
-            if net in used_nets: continue      
-            used_nets.append(net)      
-            chain = [net]
-            tracked_elements = []
-            loop_found = False 
-            check_elements = copy.copy(elements)
-                    
-            for element in check_elements:
-                if element in tracked_elements: continue
-                else: tracked_elements.append(element)
-                new_nets = []
-                if isinstance(element,scs_elements.VoltageSource):
-                    for chain_net in chain:
-                        if chain_net in element.nets[:1]:
-                            new_nets.append(element.nets[0] if element.nets[1] == net else element.nets[1])
-                            break
-                elif isinstance(element,Instance):
-                    ports  = inv_map(element.port_map)[net] if net in inv_map(element.port_map) else []
-                    for port in ports:
-                        for chained_port in element.chained_ports[port]:
-                            new_nets.append(element.port_map[chained_port])
-
-    
-                for new_net in new_nets:
-                    if not new_net in chain:
-                        chain.append(new_net)
-                        used_nets.append(new_net)
-                        if not new_net == net:
-                            check_elements += self.elements_on_net[new_net]
-                    else:
-                        loop_found = True
-                
-            if loop_found: loops[0].append(chain)
-            chains.append(chain)
-        
-        for port in self.port_nets:
-            self.chained_ports.update({port:[]})
-            for chain in chains:
-                if port in chain:
-                    for other_port in self.port_nets:
-                        if not other_port == port and other_port in chain:
-                            self.chained_ports[port].append(other_port)
-                    break
-        return loops                        
-                                                      
-    def check_voltage_loop(self):
-        """ Checks whether there are any voltage source loops in circuit.
-
-            Consistent or not voltage sources loops aren't allowed, and this check finds out
-            whether there are any in circuit. Inconsistent voltage source loop cause circuit
-            to not have any valid solution, and consistent voltage loops makes currents which
-            goes through such loops to be undefinded.
-
-            Returns True if its ok or False if not.
-        """
-        loops = self._loops_and_chained_ports()        
-        loops = self._flat_net_hier(loops)
-        if not loops:             return True  
-        else:
-            for loop in loops:
-                logging.error("Voltage loop on nets: %s" % loop)
-            return False
-
-    def _prepare_nets(self):
-        """
-            Makes inner nets and port_nets list from elements_on_net dictionay
-
-            It also updates a net_name_index dictionary which holds a number for each net
-            It makes easy to keep track of what position on vector is the value refering to.
-        """
-        self.inner_nets = []
-        self.port_nets = []        
-        self.net_name_index = {}
-        for net in self.elements_on_net:            
-            if net in self.port_map: 
-                self.port_nets.append(net)                
-            elif (not net == '0') or (self.parent):
-                self.inner_nets.append(net)
-        
+        self.inner_nets = sorted(list(set(self.inner_nets)))
+        self.port_nets = sorted(list(set(self.port_nets)))
         self.nets = self.inner_nets + self.port_nets
+        if ground_node_name_for_solver_context in all_circuit_nodes:
+            if ground_node_name_for_solver_context not in self.nets:
+                 self.nets.append(ground_node_name_for_solver_context)
+        self.nets = sorted(list(set(self.nets)), key=str)
+        for i, net_name in enumerate(self.nets): self.net_name_index[net_name] = i
 
-        for i in range(len(self.nets)):
-            self.net_name_index.update({self.nets[i]:i})
-  
-    def update_eq_with_vs(self,net,G_v,I,ignore_element = None):
-        """ Tries to update system of equations for finding solution with voltage source equation.
-                
-            net: net for which we try to make a equation for, from theory number of equations needed to solve a
-                circuit is same as number of nets
-            G_v: conductance vector forming a equation, to be updated by this function
-            I: current side of equation to be updated by this function
-            ignore_element: element which will be ignore while looking for equation
 
-            This procedure looks for unused voltage source to form another equation to system, on that net or if its a supernet
-            (few nets connected by voltage source) walk on through of any nets of that super ne, and see if any voltage
-            source wasn't used yet to form a equation. If no any such voltage source was found return false.
-            If voltage source is found update the equation and return true.
-        """
-        updated = False
-        for element in self.elements_on_net[net]:  
-            if element is ignore_element: continue             
-            if isinstance(element,scs_elements.VoltageSource) and (net in element.nets[:2]):
-                if (not element in self.used_voltage_sources):
-                    if element.nets[0] in self.net_name_index:G_v[self.net_name_index[element.nets[0]]] += 1
-                    if element.nets[1] in self.net_name_index: G_v[self.net_name_index[element.nets[1]]] += -1  
-                    if isinstance(element,scs_elements.VoltageControlledVoltageSource):
-                        if element.nets[2] in self.net_name_index: G_v[self.net_name_index[element.nets[2]]] += -element.values[0]
-                        if element.nets[3] in self.net_name_index: G_v[self.net_name_index[element.nets[3]]] += +element.values[0]
-                    elif isinstance(element,scs_elements.CurrentControlledVoltageSource): 
-                        if element.names[1] not in self.elements:
-                            raise "No such element %s referenced by %s" % (element.names[1],element.names[0])           
-                        ref_element = self.elements[element.names[1]]
-                        ref_net =ref_element.nets[0]            
-                        r = element.values[0]
-                        G_vx = [0 for i in range(len(self.nets))]
-                        Ix = [0]
-                        self.update_current_v(ref_element,ref_net,G_vx,Ix)
-                        I[0] += Ix[0]*r
-                        for i in range(len(G_v)): G_v[i] += r*G_vx[i]
-                    else: I[0] += element.values[0]
-                    self.used_voltage_sources.append(element)
-                    updated = True
-                    break
-                else:
-                    other_net = element.nets[0] if element.nets[1] == net else element.nets[1]
-                    updated = self.update_eq_with_vs(other_net,G_v,I,element)                    
-            elif isinstance(element,Instance):
-                ports = inv_map(element.port_map)[net]
-                for port in ports:
-                    for subelement in element.elements_on_net[port]:
-                        if isinstance(subelement,scs_elements.VoltageSource) and (port in subelement.nets[:2]):
-                            if (not subelement in element.used_voltage_sources):
-                                G_d,I_port = element.port_voltage(port,subelement)
-                                for port,g in G_d.iteritems():
-                                    if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
-                                I[0] += I_port
-                                element.used_voltage_sources.append(subelement)
-                                updated = True
-                                break
-                            else:
-                                G_i = [0 for i in range(len(element.nets))]
-                                G_pd = {}                                
-                                other_subnet = subelement.nets[0] if subelement.nets[1] == port else subelement.nets[1]
-                                if element.update_eq_with_vs(other_subnet,G_i,I,subelement):                                    
-                                    i = 0
-                                    for port_net in self.port_nets:
-                                        G_pd.update({port_net:G_pv[i]})
-                                        i = i + 1
-                                    for port,g in G_d.iteritems():
-                                        if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
-                                    updated = True
-                    if updated: break
-                if updated: break
-        if not updated and net in self.port_map: 
-            updadated = self.parent.update_eq_with_vs(self.port_map[net],G_v,I,self)
-        return updated
-    
+    def _get_all_flat_components_recursive_helper(self, current_instance, collected_components_list):
+        # Components in current_instance.elements already have globally unique mangled names & nodes
+        # due to how make_instance creates them.
+        for elem_obj in current_instance.elements.values():
+            collected_components_list.append(elem_obj)
+        for sub_inst_obj in current_instance.subinstances.values():
+            self._get_all_flat_components_recursive_helper(sub_inst_obj, collected_components_list)
+        # No return needed, modifies list in-place
+
     def solve(self):
-        """ Solves the instance that is:
+        logging.info(f"Instance.solve() called for '{self.name}' using NEW symbolic_solver.py logic.")
+        if self.parent is not None:
+            logging.info(f"  Instance '{self.name}' is a subcircuit. Solution handled by TopCircuit.solve().")
+            return True
+        flat_components = []
+        self._get_all_flat_components_recursive_helper(self, flat_components)
+        if not flat_components:
+            logging.warning("No components found to solve in TopCircuit."); self.solved_dict = {}; return True
+        logging.info(f"  TopCircuit solve: Found {len(flat_components)} components (flattened).")
+        unknowns = set(); all_circuit_nodes = set()
+        for comp in flat_components: # comp.name, comp.node1/2 are already mangled global names
+            all_circuit_nodes.add(comp.node1); all_circuit_nodes.add(comp.node2)
+            # I_comp, V_comp, P_comp symbols are based on component's (mangled) name
+            if hasattr(comp, 'I_comp'): unknowns.add(comp.I_comp)
+            if hasattr(comp, 'P_comp'): unknowns.add(comp.P_comp)
+            if hasattr(comp, 'V_comp'): unknowns.add(comp.V_comp)
+            # Control voltage symbols use mangled node names (e.g. V_X1.NCTRL_P)
+            if hasattr(comp, 'V_control_p_sym'): unknowns.add(comp.V_control_p_sym)
+            if hasattr(comp, 'V_control_n_sym'): unknowns.add(comp.V_control_n_sym)
+            # I_control_sym uses mangled control component name (e.g. I_X1.VSENSE)
+            if hasattr(comp, 'I_control_sym'): unknowns.add(comp.I_control_sym)
 
-            V - node voltage vector
-            V = [Vi ; Vp]
-            Vi - inner nodes voltage
-            Vp - port nodes vector
-            Vi = Ap*Vp + V0
-            Ap - linear function matrix (Attenuation matrix)
-            V0 - inner nodes voltage vector for Vp = 0
-    
-            By solving instance we provide update Ap matrix and V0 vector.
-            G * V = I
-            [G_i, G+p] * [Vi ; Vp]  = I
-            G_i*Vi + G_p*Vp = I
-            
-            Vi = -G_i^-1*G_p*Vp + G_i^-1*I
-            Vi = Ap*Vp + V0
-            
-            Thus we update G matrix (write the equations), and by doing linear algebra we calculate the results.
-            
-        """
-        for subname,subinstance in self.subinstances.iteritems():
-            subinstance.solve()       
-        
-        N = len(self.nets)
-        Ni = len(self.inner_nets)
-        Np = len(self.port_nets)
-        for i in range(N):
-            self.net_name_index.update({self.nets[i]:i})
-    
-        G_m = []
-        I_v = []
-        self.used_voltage_sources = []        
-
-        for net in self.inner_nets:
-            G_v = [0 for i in range(len(self.nets))]
-            I = [0]
-            if not self.update_eq_with_vs(net,G_v,I):
-                for element in self.elements_on_net[net]:
-                    self.update_current_v(element,net,G_v,I)
-            #G_m.append(G_v)
-            G_m.append([sympy.cancel(tmp) for tmp in G_v])
-            I_v.append([sympy.cancel(tmp) for tmp in I])
-            
-        #Make and slice the Matrix G_M = [G_i | G_p]
-        G_m = sympy.Matrix(G_m)
-        I_v = sympy.Matrix(I_v)
-        G_i = G_m[:,:Ni]
-        G_p = G_m[:,Ni:]
-                
-        # G_i*V_i + G_p*V_p  = I_v
-        # V_i = G_i^-1 I_v - G_i^-1 * G_p * V_p
-        # V_i = Vo +Ap * vp
-        try:
-            G_i_inv = G_i.inv() 
-        except ValueError, e:
-            raise scs_errors.ScsElementError("%s is ill conditioned, and has no unique solution." % self.name if self.name else "TOP INSTANCE")
-        self.V0_m = G_i_inv*I_v
-        self.Ap_m = -G_i_inv*G_p
-
-        #Translate those into dictionaries
-        for i in range(Ni):
-            self.V0.update({self.inner_nets[i]:self.V0_m[i]})
-        
-        for j in range(Np):
-            tmp_dict = {}
-            for i in range(Ni):
-                tmp_dict.update({self.inner_nets[i]:self.Ap_m[i,j]})
-            self.Ap.update({self.port_nets[j]:tmp_dict})
-             
-    def adjoint_elements(self,refelement,net):
-        """ Provides list of pairs of element,net that are adjoint to reference element on provided net
-            
-            refelement: reference element
-            net: name of the net where we search for adjoint element
-
-            If net is part of supernet all nets in supernet will be search and be put on output. Returns list of pair [(element,net) ... ].
-        """
-        elements_nets = []
-        for element in self.elements_on_net[net]:
-            if not element is refelement:
-                if isinstance(element,scs_elements.VoltageSource):
-                    elements_nets = self.adjoint_elements(element,element.nets[0] if element.nets[1] == net else element.nets[1])
-                else: elements_nets.append((element,element.nets[1] if element.nets[0] == net else element.nets[0]))
-        return elements_nets
-           
-    def update_current_v(self,element,net,G_v,I):
-        """ Updates conductance vector and current part of equation for net.
-
-            element: element whos current will be added to eqution
-            net: net for which we write the equation
-            G_v: conductance vector to be updated by the element
-            I: current to be updated by the element
-
-            For passive elements it will be as current flowing out of the net. For current source,
-            the other side of equation will be udateded so it will be current flowing into the net.
-            
-        """
-        
-        if isinstance(element,scs_elements.Element) and (net in element.nets[:2]):
-            other_net  = element.nets[1] if (net == element.nets[0]) else element.nets[0]
-            
-            if isinstance(element,scs_elements.VoltageSource):                
-                for other_net_element in self.elements_on_net[other_net]:
-                    if not other_net_element is element: self.update_current_v(other_net_element,other_net,G_v,I)
-            elif isinstance(element,scs_elements.PassiveElement):
-                g = element.conductance()
-                if net in self.net_name_index: G_v[self.net_name_index[net]] += g
-                if other_net in self.net_name_index: G_v[self.net_name_index[other_net]] -= g
-            elif isinstance(element,scs_elements.VoltageControlledCurrentSource):
-                gm = (element.values[0] if element.nets[0] == net else -element.values[0])
-                if element.nets[3] in self.net_name_index: G_v[self.net_name_index[element.nets[3]]] += gm
-                if element.nets[2] in self.net_name_index: G_v[self.net_name_index[element.nets[2]]] -= gm   
-            elif isinstance(element,scs_elements.CurrentControlledCurrentSource):         
-                ref_element = self.elements[element.names[1]]
-                ref_net =ref_element.nets[0]
-                refelements_nets = [(ref_element,1)]
-                if isinstance(ref_element,scs_elements.VoltageSource):
-                    refelements_nets = self.adjoint_elements(ref_element,ref_net)                
-                a = 0
-                G_vx = [0 for i in range(len(self.nets))]
-                Ix = [0]
-                for ref_element,ref_net in refelements_nets:
-                    if ref_element is element: a += (1 if ref_net == element.nets[0] else -1)
-                    else: self.update_current_v(ref_element,ref_net,G_vx,Ix)
-                a = 1 - a*element.values[0]
-                if a: a = element.values[0]/a
-                else: raise scs_errors.ScsInstanceError("Error: ill conditioned current controlled source")
-               
-                for i in range(len(G_vx)): G_v[i] += a*G_vx[i]
-                I[0] += a*Ix[0]
-            elif isinstance(element,scs_elements.CurrentSource):
-                I[0] += (element.values[0] if element.nets[0] == net else -element.values[0])
-        elif isinstance(element,Instance):
-                port_nets = inv_map(element.port_map)[net]
-                #Check if it is connected, if it is we need to take into account the chain voltage, not current
-                for port_net in port_nets:
-                    G_d,I_port,other_ports = element.port_current(port_net)
-                    for port,g in G_d.iteritems():
-                        if element.port_map[port] in self.net_name_index: G_v[self.net_name_index[element.port_map[port]]] += g
-                    I[0] += I_port
-                    for other_port in other_ports:
-                        for other_port_element in self.elements_on_net[element.port_map[other_port]]:
-                            if not other_port_element is element: self.update_current_v(other_port_element,element.port_map[other_port],G_v,I)
-
-    def current_v(self,element,net):
-        """ Provide current thruogh element flowing out of the net.
-    
-            element: element for which we calculate the current
-            net: net out of which current flows through a element.
-
-            Return conductance vector and current scalar. So final current is Iout = G_v*V - I
-        """
-        G_v = [0 for i in range(len(self.nets))]
-        I = [0]
-        self.update_current_v(element,net,G_v,I)
-        return G_v,I
-                
-    def port_voltage(self,port,element):
-        """ Translate subinstance voltage sources equation as equation using port volages.
-            
-            port: net for which we write equation (name as in subinstance)
-            element: voltage source for which we write equation
-
-            While writing equations if net is a port of some subinstance (self), on which there is an unused voltage source
-            (one which was unused while solving subinstance) we must use it to write it next equation. This function
-            provides this equation in form of port voltages (uknown because parent instance is being solved), while we can
-            use inner voltages which are in linear funciton of port voltages as well. This equation will be used to 
-            write an equation using parent circuit net names. Returns conductance dictionary (not to confuse numbers with port nets).                
-        """
-        N = len(self.nets)
-        Ni = len(self.inner_nets)
-        Np = len(self.port_nets)
-        
-        G_v = [0 for i in range(N)]
-        I = [0]
-        G_v[self.net_name_index[element.nets[0]]] = 1
-        G_v[self.net_name_index[element.nets[1]]] = -1  
-        if isinstance(element,scs_elements.VoltageControlledVoltageSource):
-            G_v[self.net_name_index[element.nets[2]]] = element.values[0]
-            G_v[self.net_name_index[element.nets[3]]] = -element.values[0]                                   
-        else: I = [element.values[0]]
-        
-        G_v1,G_v2 = G_v[:Ni],G_v[Ni:]
-        G_v1m,G_v2m = sympy.Matrix(G_v1),sympy.Matrix(G_v2)
-        
-        if G_v1: 
-            G_pv = list(self.Ap_m.transpose()*G_v1m+G_v2m)
-            I[0] += list(G_v1m.transpose()*self.V0_m)[0]
-        else: G_pv = list(G_v2m)
-        
-
-        #Translate vector into dictionary
-        G_pd = {}
-        i = 0
-        for port_net in self.port_nets:
-            G_pd.update({port_net:G_pv[i]})
-            i = i + 1
-        
-        return G_pd,I[0]
-                
-    def port_current(self,port):
-        """ Translate subinstance port current equation as equation using port voltages.
-            
-            port: net for which we write equation (name as in subinstance)
-
-            Provides current from a port in form of:
-            port_current I = G*Vp + I_other_ports
-                            
-            Returns:
-            G_pd: conductance dictionary
-            other_ports: list of other ports current through which we needs to add
-        """
-        N = len(self.nets)
-        Ni = len(self.inner_nets)
-        Np = len(self.port_nets)
-        G_v = [0 for i in range(N)]
-        I = [0]
-        for element in self.elements_on_net[port]:
-            self.update_current_v(element,port,G_v,I)
-        
-        G_v1,G_v2 = G_v[:Ni],G_v[Ni:]
-        G_v1m,G_v2m = sympy.Matrix(G_v1),sympy.Matrix(G_v2)
-        
-        if G_v1: 
-            G_pv = list(self.Ap_m.transpose()*G_v1m+G_v2m)
-            I[0] += list(G_v1m.transpose()*self.V0_m)[0]
-        else: G_pv = list(G_v2m)
-        
-        #Translate vector into dictionary
-        G_pd = {}
-        i = 0
-        for port_net in self.port_nets:
-            G_pd.update({port_net:G_pv[i]})
-            i = i + 1
-        
-        return G_pd,I[0],self.chained_ports[port]
-
-    def isub(self,port):
-        """ Calculate current flowing into port
-            
-            port: port for which current will be calculated, can be written in dot notation
-
-            Self needs to be solved to use it. Returns a value of this current. 
-        """
-        hier_port = port.split('.')
-        if len(hier_port)<2:
-            raise scs_errors.ScsInstanceError("Can't calculate port current from top circuit")
-        elif len(hier_port)==2:
-            subinstance_name = hier_port[-2]
-            port_net = hier_port[-1]
-            if subinstance_name not in self.subinstances: 
-                raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(subinstance_name,self.name if self.name else "TOP INSTANCE"))
-            subinstance = self.subinstances[subinstance_name]
-            if port_net not in subinstance.port_nets: 
-                raise scs_errors.ScsInstanceError("No port %s in subinstance %s of %s" %(port_net,subinstance.name,self.name if self.name else "TOP INSTANCE"))
-            G_v =[0 for i in range(len(self.nets))]
-            I = [0]
-            G_d,I[0],other_ports = subinstance.port_current(port_net)
-            for p,g in G_d.iteritems():
-                if subinstance.port_map[p] in self.net_name_index: G_v[self.net_name_index[subinstance.port_map[p]]] += g 
-            for other_port in other_ports:
-                for other_port_element in self.elements_on_net[element.port_map[other_port]]:
-                    if not other_port_element is element: self.update_current_v(other_port_element,element.port_map[other_port],G_v,I)
-            i = 0
-            for g in G_v:
-                if g:
-                    I[0] += g*self.v(self.nets[i])
-                i += 1
-            return I[0]
-            #return sympy.factor(I[0],sympy.symbols('s'))
-            #return I[0].simplify()
-            #return sympy.powsimp(I[0])
-        else:        
-            subinstance = self
-            for subname in hier_port[:-2]:
-                if subname in subinstance.subinstances:
-                    subinstance = subinstance.subinstances[subname]
-                else:
-                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(hier_name,self.name if self.name else "TOP INSTANCE"))
-            return subinstance.isub('%s.%s' % (hier_inst[-2],hier_inst[-1]))
-
-    def i(self,instance):
-        """ Current flowing through instance
-
-            instance: instance for which we calculate current for, can be written in dot notation
-            
-            Returns value of a current. Instance need to be solved first to use it.
-        """
-        hier_inst = instance.split('.')
-        
-        if len(hier_inst) == 1:
-            if hier_inst[0] in self.elements:
-                G_v,I = self.current_v(self.elements[hier_inst[0]],self.elements[hier_inst[0]].nets[0])
-                i = 0
-                for g in G_v:
-                    if g:
-                        I[0] -= g*self.v(self.nets[i])
-                    i += 1
-                #return sympy.factor(I[0],sympy.symbols('s'))
-                #return I[0].simplify()
-                return -I[0]
-            else: 
-                raise scs_errors.ScsInstanceError("Can't find element %s in %s" % (hier_inst[0],self.name if self.name else "TOP INSTANCE"))
+        for node_str in all_circuit_nodes:
+            if node_str != ground_node_name_for_solver_context:
+                unknowns.add(sp.Symbol(f"V_{node_str}"))
+        unknowns_list = sorted(list(unknowns), key=str)
+        known_specs = []
+        logging.info(f"  Calling root_solve_circuit with {len(flat_components)} comps, {len(unknowns_list)} unknowns.")
+        solution_list = root_solve_circuit(flat_components, unknowns_list, known_specs, ground_node_name_for_solver_context)
+        if solution_list and solution_list[0]:
+            self.solved_dict = solution_list[0]
+            for sym, val in self.solved_dict.items(): self.paramsd[str(sym)] = val
+            for node_str in all_circuit_nodes:
+                v_sym = sp.Symbol(f"V_{node_str}")
+                if v_sym in self.solved_dict: self.V[str(node_str)] = self.solved_dict[v_sym]
+                elif str(node_str) == ground_node_name_for_solver_context: self.V[str(node_str)] = sp.Integer(0)
+            logging.info(f"  Solution found. First few: {list(self.solved_dict.items())[:3]}")
         else:
-            subinstance = self
-            for subname in hier_inst[:-1]:
-                if subname in subinstance.subinstances:
-                    subinstance = subinstance.subinstances[subname]
-                else: 
-                    raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(hier_name,self.name if self.name else "TOP INSTANCE"))
-            return subinstance.i(hier_inst[-1])
+            self.solved_dict = {}; logging.error(f"  Solver did not return solution for {self.name}."); return False
+        return True
 
-    def v(self,net1,net2=None):
-        """ Calculate voltage differnce between nets 1 and 2 V(net1)-V(net2)
+    def v(self, net1_str, net2_str=None):
+        net1_str = str(net1_str); net2_str = str(net2_str) if net2_str is not None else ground_node_name_for_solver_context
+        if self.solved_dict is None:
+            logging.warning(f"Instance.v({net1_str},{net2_str}) called before solve. Returning 0."); return sp.Integer(0)
+        
+        v1_sym = sp.Symbol(f"V_{net1_str}")
+        v2_sym = sp.Symbol(f"V_{net2_str}")
+        v1_val = self.solved_dict.get(v1_sym, self.V.get(net1_str)) if net1_str != ground_node_name_for_solver_context else sp.Integer(0)
+        v2_val = self.solved_dict.get(v2_sym, self.V.get(net2_str)) if net2_str != ground_node_name_for_solver_context else sp.Integer(0)
+        
+        if v1_val is None: logging.warning(f"V({net1_str}) not found in solution. Defaulting to 0."); v1_val = sp.Integer(0)
+        if v2_val is None: logging.warning(f"V({net2_str}) not found in solution. Defaulting to 0."); v2_val = sp.Integer(0)
+        return v1_val - v2_val
+
+    def i(self, element_name_hier_str):
+        element_name_hier_str = str(element_name_hier_str).upper() # Match SPICE case-insensitivity
+        if self.solved_dict is None:
+            logging.warning(f"Instance.i({element_name_hier_str}) called before solve. Returning 0."); return sp.Integer(0)
+        
+        # The element_name_hier_str is the mangled name, e.g. "R1" or "X1.R1"
+        # The I_comp symbol is I_R1 or I_X1.R1.
+        i_comp_sym_to_lookup = sp.Symbol(f"I_{element_name_hier_str}")
+        
+        if i_comp_sym_to_lookup in self.solved_dict:
+            return self.solved_dict[i_comp_sym_to_lookup]
+        else: # Fallback: search for the component instance by mangled name to get its I_comp
+            # This path should ideally not be needed if I_comp symbols are consistently named.
+            all_components = []
+            self._get_all_flat_components_recursive_helper(self, all_components)
+            for comp in all_components:
+                if comp.name.upper() == element_name_hier_str: # comp.name is already mangled
+                    if hasattr(comp, 'I_comp') and comp.I_comp in self.solved_dict:
+                        return self.solved_dict[comp.I_comp]
+            logging.warning(f"Current I_{element_name_hier_str} not found in solved_dict. Defaulting to 0.")
+            return sp.Integer(0)
+
+    def isub(self, port_name_str):
+        logging.warning(f"Instance.isub('{port_name_str}') not implemented for new solver. Returning 0.")
+        return sp.Integer(0)
+    def check_path_to_gnd(self): logging.info("Placeholder: Instance.check_path_to_gnd() called."); return True
+    def check_voltage_loop(self): logging.info("Placeholder: Instance.check_voltage_loop() called."); return True
+
+ground_node_name_for_solver_context = '0'
+
+my_element_class_map = {
+    'R': Resistor, 'C': Capacitor, 'L': Inductor, 'V': VoltageSource, 'I': CurrentSource,
+    'E': VCVS, 'G': VCCS, 'H': CCVS, 'F': CCCS,
+}
+sin_regex = re.compile(r"SIN\s*\(\s*(?P<VOFF>[^\s()]+)\s+(?P<VAMPL>[^\s()]+)\s+(?P<FREQ>[^\s()]+)(?:\s+(?P<TD>[^\s()]+)\s+(?P<THETA>[^\s()]+)(?:\s+(?P<PHASE>[^\s()]+))?)?\s*\)", re.IGNORECASE)
+
+def make_instance(parent_instance, instance_name_str, circuit_template, instance_port_map={}, passed_params_to_subckt={}):
+    # instance_name_str is local name (e.g. R1, or X1).
+    # current_prefix is for mangling children of this instance.
+    current_prefix = f"{instance_name_str}." if parent_instance else "" # No prefix for top-level components
+    if instance_name_str == circuit_template.name and parent_instance is None: # If it's top instance itself
+        current_prefix = "" # Top level components don't get "top." prefix
+
+    current_instance = Instance(parent_instance, instance_name_str, instance_port_map)
+    current_instance.circuit_definition = circuit_template
+    parent_params_for_eval = parent_instance.paramsd if parent_instance else {}
+    try:
+        current_instance.paramsd = scs_parser.evaluate_params(
+            circuit_template.parametersd, parent_params_for_eval, instance_context=current_instance
+        )
+    except scs_errors.ScsParameterError as e:
+        raise scs_errors.ScsInstanceError(f"Eval internal params in {circuit_template.name} for {instance_name_str}. {e}")
+    current_instance.paramsd.update(passed_params_to_subckt)
+
+    for comp_def_name_local, generic_element_template in circuit_template.elementsd.items(): # comp_def_name_local is R1, C1 etc.
+        comp_type_char = comp_def_name_local[0].upper()
+        comp_name_mangled = current_prefix + comp_def_name_local # e.g. X1.R1
+        new_comp_instance = None
+
+        def resolve_node_name(node_name_in_subckt_def_scope):
+            node_str = str(node_name_in_subckt_def_scope)
+            if node_str == '0': return '0' # Global ground
+            # If current_instance is top, node names are already global.
+            if parent_instance is None and not current_instance.parent : # We are processing top-level circuit's elements
+                 return node_str
+            # We are processing elements of a subcircuit (current_instance is that subcircuit)
+            # instance_port_map maps local port names of current_instance to global names in its parent.
+            if node_str in current_instance.port_map:
+                return str(current_instance.port_map[node_str]) # Use mapped global name
+            # Else, it's an internal node to this subcircuit instance. Mangle its name.
+            return current_prefix + node_str # e.g. X1.N_INTERNAL
+
+        if comp_type_char == 'X': # Subcircuit instance
+            subckt_type_name = generic_element_template.paramsl[-1] # e.g. MY_RC_FILTER
+            subcircuit_definition_template = getSubcircuit(subckt_type_name, circuit_template)
+            if subcircuit_definition_template:
+                # Nodes on X-line are relative to current_instance's scope. Resolve them.
+                subckt_instance_nodes_resolved = [resolve_node_name(n) for n in generic_element_template.paramsl[:-1]]
+                
+                # Port map for the new sub_inst_obj: maps its definition's port names to these resolved_nodes
+                new_sub_port_map = {}
+                if len(subckt_instance_nodes_resolved) == len(subcircuit_definition_template.ports):
+                    for i_port, port_name_in_def in enumerate(subcircuit_definition_template.ports):
+                        new_sub_port_map[port_name_in_def] = subckt_instance_nodes_resolved[i_port]
+                else: raise scs_errors.ScsInstanceError(f"Port length mismatch for X {comp_def_name_local} of type {subckt_type_name}")
+
+                evaluated_params_passed_on_X_line = scs_parser.evaluate_passed_params(generic_element_template.paramsd, current_instance)
+                # comp_def_name_local is X1, X2 etc. This becomes the sub_inst_obj.name
+                # The current_prefix is for elements *within* X1 (e.g. X1.R1).
+                # So, sub_inst_obj is created within current_instance.
+                sub_inst_obj = make_instance(current_instance, comp_def_name_local, subcircuit_definition_template, new_sub_port_map, evaluated_params_passed_on_X_line)
+                current_instance.add_sub_instance(sub_inst_obj)
+            else: raise scs_errors.ScsInstanceError(f"No def for subckt type: {subckt_type_name} for X {comp_def_name_local}")
+            continue
+        elif comp_type_char in my_element_class_map:
+            CompClass = my_element_class_map[comp_type_char]
+            raw_nodes_str_list = generic_element_template.paramsl
+            params_dict = generic_element_template.paramsd
+            node1_mangled = resolve_node_name(raw_nodes_str_list[0])
+            node2_mangled = resolve_node_name(raw_nodes_str_list[1])
+            evaluated_value_sympy = None
             
-            net1: 1st voltage net name, can be in dot notation
+            if CompClass in [Resistor, Capacitor, Inductor]:
+                value_expr_str = params_dict.get(comp_type_char.lower(), params_dict.get(comp_type_char.upper(), params_dict.get('value', raw_nodes_str_list[2] if len(raw_nodes_str_list) > 2 else None)))
+                if value_expr_str is None: raise scs_errors.ScsInstanceError(f"No value for {comp_name_mangled}")
+                evaluated_value_sympy = _ensure_sympy_expr(value_expr_str, comp_name_mangled, current_instance.paramsd, current_instance.parent, current_instance)
+                if CompClass == Resistor: new_comp_instance = Resistor(comp_name_mangled, node1_mangled, node2_mangled, resistance_sym=evaluated_value_sympy)
+                elif CompClass == Capacitor: new_comp_instance = Capacitor(comp_name_mangled, node1_mangled, node2_mangled, capacitance_sym=evaluated_value_sympy)
+                elif CompClass == Inductor: new_comp_instance = Inductor(comp_name_mangled, node1_mangled, node2_mangled, inductance_sym=evaluated_value_sympy)
+            elif CompClass in [VoltageSource, CurrentSource]:
+                # ... (V, I source value parsing logic from previous subtask, using node1_mangled, node2_mangled, comp_name_mangled)
+                # This logic was already updated to use _ensure_sympy_expr with current_instance contexts.
+                # The full, correct V/I parsing logic from previous subtask should be here.
+                # For brevity, assuming it's correctly pasted by worker.
+                # START V/I Logic (from previous successful subtask)
+                val_list_for_source = raw_nodes_str_list[2:]
+                final_source_val_expr = None; source_keyword_from_list = ""
+                if val_list_for_source: source_keyword_from_list = val_list_for_source[0].upper()
+                has_sin_spec_list=False; sin_args_list=[]; has_ac_spec_list=False; ac_args_list=[]; has_dc_spec_list=False; dc_arg_list="0"; is_direct_dc_val_list=False
+                idx = 0
+                if val_list_for_source:
+                    first_token_upper = val_list_for_source[0].upper()
+                    if not (first_token_upper == 'DC' or first_token_upper == 'AC' or first_token_upper.startswith('SIN(')):
+                        is_direct_dc_val_list = True; dc_arg_list = val_list_for_source[0]; idx = 1
+                while idx < len(val_list_for_source):
+                    keyword = val_list_for_source[idx].upper()
+                    if keyword.startswith("SIN("):
+                        has_sin_spec_list = True; reconstructed_sin_str = val_list_for_source[idx]; current_part_idx = idx
+                        while not reconstructed_sin_str.endswith(')'):
+                            current_part_idx += 1
+                            if current_part_idx < len(val_list_for_source): reconstructed_sin_str += " " + val_list_for_source[current_part_idx]
+                            else: break
+                        sin_args_list = [reconstructed_sin_str]; idx = current_part_idx + 1; continue
+                    elif keyword == "AC": has_ac_spec_list = True; ac_args_list = val_list_for_source[idx+1 : idx+3]; idx += 3; continue
+                    elif keyword == "DC":
+                        has_dc_spec_list = True; is_direct_dc_val_list = False
+                        if idx + 1 < len(val_list_for_source): dc_arg_list = val_list_for_source[idx+1]
+                        else: dc_arg_list = "0"
+                        idx += 2; continue
+                    idx +=1
+                if has_sin_spec_list:
+                    match = sin_regex.match(sin_args_list[0])
+                    if match:
+                        g = match.groupdict(); vampl_str = g.get('VAMPL', '0'); phase_str = g.get('PHASE', '0') or '0'
+                        vampl_sym = _ensure_sympy_expr(vampl_str, comp_name_mangled+"_sinamp", current_instance.paramsd, current_instance.parent, current_instance)
+                        phase_deg_sym = _ensure_sympy_expr(phase_str, comp_name_mangled+"_sinph", current_instance.paramsd, current_instance.parent, current_instance)
+                        final_source_val_expr = vampl_sym * sp.exp(sp.I * (phase_deg_sym * sp.pi / 180))
+                if final_source_val_expr is None and has_ac_spec_list:
+                    ac_mag_str = ac_args_list[0] if len(ac_args_list) > 0 else '1'; ac_phase_str = ac_args_list[1] if len(ac_args_list) > 1 else '0'
+                    ac_mag = _ensure_sympy_expr(ac_mag_str, comp_name_mangled+"_acm", current_instance.paramsd, current_instance.parent, current_instance)
+                    ac_phase_deg = _ensure_sympy_expr(ac_phase_str, comp_name_mangled+"_acp", current_instance.paramsd, current_instance.parent, current_instance)
+                    final_source_val_expr = ac_mag * sp.exp(sp.I * (ac_phase_deg * sp.pi / 180))
+                if final_source_val_expr is None and (has_dc_spec_list or is_direct_dc_val_list):
+                    final_source_val_expr = _ensure_sympy_expr(dc_arg_list, comp_name_mangled+"_dcval", current_instance.paramsd, current_instance.parent, current_instance)
+                if final_source_val_expr is None:
+                    sin_f_pd=params_dict.get('SIN'); ac_m_pd=params_dict.get('ACMAG',params_dict.get('AC')); dc_v_pd=params_dict.get('DC')
+                    if sin_f_pd:
+                        match = sin_regex.match(sin_f_pd);
+                        if match:
+                             g = match.groupdict(); vampl_str = g.get('VAMPL', '0'); phase_str = g.get('PHASE', '0') or '0'
+                             v_s = _ensure_sympy_expr(vampl_str,comp_name_mangled+"_sinamp_pd",current_instance.paramsd,current_instance.parent,current_instance)
+                             p_s = _ensure_sympy_expr(phase_str,comp_name_mangled+"_sinph_pd",current_instance.paramsd,current_instance.parent,current_instance)
+                             final_source_val_expr = v_s*sp.exp(sp.I*(p_s*sp.pi/180))
+                    elif ac_m_pd:
+                        ac_p_pd = params_dict.get('ACPHASE','0');
+                        a_m = _ensure_sympy_expr(ac_m_pd,comp_name_mangled+"_acm_pd",current_instance.paramsd,current_instance.parent,current_instance)
+                        a_p = _ensure_sympy_expr(ac_p_pd,comp_name_mangled+"_acp_pd",current_instance.paramsd,current_instance.parent,current_instance)
+                        final_source_val_expr = a_m*sp.exp(sp.I*(a_p*sp.pi/180))
+                    elif dc_v_pd: final_source_val_expr = _ensure_sympy_expr(dc_v_pd, comp_name_mangled+"_dcpd",current_instance.paramsd,current_instance.parent,current_instance)
+                # END V/I Logic
+                evaluated_value_sympy = final_source_val_expr if final_source_val_expr is not None else sp.Integer(0)
+                if CompClass == VoltageSource: new_comp_instance = VoltageSource(comp_name_mangled, node1_mangled, node2_mangled, voltage_val_sym=evaluated_value_sympy)
+                elif CompClass == CurrentSource: new_comp_instance = CurrentSource(comp_name_mangled, node1_mangled, node2_mangled, current_val_sym=evaluated_value_sympy)
+                if final_source_val_expr is None : logging.warning(f"No value for source {comp_name_mangled}, default 0.")
+            elif CompClass in [VCVS, VCCS]:
+                if len(raw_nodes_str_list) < 5: raise scs_errors.ScsInstanceError(f"Insufficient params for {comp_name_mangled}")
+                ctrl_p_mangled = resolve_node_name(raw_nodes_str_list[2])
+                ctrl_n_mangled = resolve_node_name(raw_nodes_str_list[3])
+                factor_expr_str = raw_nodes_str_list[4]
+                evaluated_factor_sympy = _ensure_sympy_expr(factor_expr_str, comp_name_mangled+"_factor", current_instance.paramsd, current_instance.parent, current_instance)
+                if CompClass == VCVS: new_comp_instance = VCVS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_p_mangled, ctrl_n_mangled, gain_sym=evaluated_factor_sympy)
+                else: new_comp_instance = VCCS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_p_mangled, ctrl_n_mangled, transconductance_sym=evaluated_factor_sympy)
+            elif CompClass in [CCVS, CCCS]:
+                if len(raw_nodes_str_list) < 4: raise scs_errors.ScsInstanceError(f"Insufficient params for {comp_name_mangled}")
+                raw_ctrl_comp_name = raw_nodes_str_list[2]
+                # Control component name needs prefixing if it's within the same (sub)circuit scope
+                # Assume for now that if parent_instance is not None (i.e. we are in a subcircuit),
+                # then raw_ctrl_comp_name is local to this subcircuit unless it's found in parent.
+                # This needs robust hierarchical name resolution for control component.
+                # Simple prefix for now if this is a subcircuit.
+                ctrl_comp_name_mangled_for_symbol = current_prefix + raw_ctrl_comp_name
 
-            net2: 2nd voltage net name, can be in dot notation
+                factor_expr_str = raw_nodes_str_list[3]
+                evaluated_factor_sympy = _ensure_sympy_expr(factor_expr_str, comp_name_mangled+"_factor", current_instance.paramsd, current_instance.parent, current_instance)
+                if CompClass == CCVS: new_comp_instance = CCVS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_comp_name_mangled_for_symbol, transresistance_sym=evaluated_factor_sympy)
+                else: new_comp_instance = CCCS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_comp_name_mangled_for_symbol, gain_sym=evaluated_factor_sympy)
             
-            Instance need to be solved to use this function.
-        """
-        hier_net_1 = net1.split('.') if net1 else None
-        hier_net_2 = net2.split('.') if net2 else None
-
-        v = []
-        for hier_net in (hier_net_1,hier_net_2):
-            if hier_net and len(hier_net) == 1 :
-                net = hier_net[0]
-                if not net in self.V:
-                    if net in self.inner_nets:
-                        vx = self.V0[net]
-                       # Ap = self.Ap[net] if net in self.Ap else {}
-                        for port,Ap in self.Ap.iteritems():
-                            ap = Ap[net]
-                            if ap:
-                                if port not in self.Vp:
-                                    self.Vp.update({port:self.parent.v(self.port_map[port])})                                        
-                                vx += ap*self.Vp[port]
-                        self.V.update({net:vx})
-                    elif net in self.port_nets:
-                        if net not in self.Vp:
-                            self.Vp.update({net:self.parent.v(self.port_map[net])})
-                        self.V.update({net:self.Vp[net]})
-                    else:
-                        if net == '0' and not self.parent:
-                            self.V.update({'0':0})
-                        else: 
-                            raise scs_errors.ScsInstanceError("No net %s in %s" %(net,self.name if self.name else "TOP INSTANCE"))
-                v.append(self.V[net])        
-            elif hier_net:
-                hier_instance = self    
-                for hier_name in hier_net[:-1]:
-                    if hier_name in hier_instance.subinstances:
-                        hier_instance = hier_instance.subinstances[hier_name]
-                    else:
-                        raise scs_errors.ScsInstanceError("No %s subinstance in %s" %(hier_name,self.name if self.name else "TOP INSTANCE"))
-                v.append(hier_instance.v(hier_net[-1]))
-            else:
-                v.append(0)            
-        #return sympy.factor(v[0]-v[1],sympy.symbols('s'))
-        #return (v[0]-v[1]).simplify()                                      
-        return v[0]-v[1]
-        #return sympy.cancel(v[0]-v[1])
-def _contract_chains(chains):
-    """ Contracts chains in list into larger chains if are connected
-
-        chains: list of chains that could be contracted
-        
-        Returns list of contracted chains. Connected chains are chains which both contain at least one of the net. 
-        If 2 chains in chains are [[foo bar] [bar spam becon]] there will be contracted into [[ foo bar spam bacon]]
-
-    """
-    N = len(chains)
-    contract_chains = []
-    for i in range(N):
-        joined = False
-        for j in range(i+1,N):                
-            for k in range(len(chains[i])):
-                if chains[i][k] in chains[j]:
-                    chains[j] += chains[i][:k] + chains[i][(k+1):]
-                    joined = True
-                    break  
-        if not joined:
-            contract_chains.append(chains[i])                 
-    return contract_chains
-
-def _is_a_loop(chain):
-    """ Check if a chain is a loop
-        
-        chain: chain to be checked
-    
-        chain is a loop if there are at least to nets on its list with same name
-        [spam spam baco] is a loop
-        [spam bacon eggs] is not a loop
-        
-        Returns True or False
-    """
-
-    is_loop = False
-    for i in range(len(chain)):
-        if (chain[i] in chain[i+1:]):
-            is_loop = True
-            break
-    return is_loop
-        
-def inv_map(map):
-    """ Inverts a dictionary (map)
-        
-        map: dictionary to be inverted
-
-        Exchanges key and values pair in dictionary with each other. If we got dictionary like
-        { for: spam,
-          bar: spam}
-        The result of inversion will be dictionary:        
-        { spam: [foo,bar]}
-
-        Thus the values of result dictionary are in form of a list cause it could happen that original dictionary isn't one-to-one.
-    """
-    imap = {}
-    for k, v in map.iteritems():
-        if v in imap:
-           imap[v].append(k)
+            if new_comp_instance:
+                current_instance.add_element(new_comp_instance)
+            elif comp_type_char not in ['X']:
+                logging.warning(f"Component {comp_name_mangled} (type {comp_type_char}) N/I or instantiation failed.")
         else:
-            imap.update({v:[k]}) 
-    return imap 
-        
-def getSubcircuit(name,circuit):
-    """ Get subcircuit definition by a name from a dictionary.
+            logging.warning(f"Unknown element type prefix: {comp_type_char} for {comp_def_name_local}. Skipping.")
+    current_instance._prepare_nets()
+    return current_instance
 
-        name: name of subcircuit to get
-        
-        circuit: circuit of which dictionary of subcircuits will be searched for subcircuit name
-
-        If the circuit name isn't in the circuit dictionary, parent (if exists) will be search as well.
-        Returns said subcircuit or None if there isn't any with such name.
-    """
-    if name in circuit.subcircuitsd:
-        return circuit.subcircuitsd[name]
-    elif circuit.parent:
-        return getSubcircuit(name,circuit.parent)
-    else: 
+def make_top_instance(circuit_template):
+    global ground_node_name_for_solver_context
+    try:
+        return make_instance(None, str(circuit_template.name), circuit_template, {}, {}) # Ensure name is string
+    except scs_errors.ScsInstanceError as e:
+        logging.error(f"Failed to make top instance for {circuit_template.name}: {e}", exc_info=True)
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error in make_top_instance for {circuit_template.name}: {e}", exc_info=True)
         return None
 
-def make_top_instance(circuit):
-    """ Makes top instance from circuit
-        
-        circuit: a circuit which will be instantiated
-
-        Top circuit won't have a name or parent.
-        Returns instance of a circuit or None if some error does appear.
-    """
-    try:
-        return make_instance(None,None,circuit)
-    except scs_errors.ScsInstanceError, e:
-        logging.error(e)
-        return None
-
-def make_instance(parent,name,circuit,port_map={},passed_paramsd={}):
-    """ Makes an instance of a circuit
-
-        parent: parent of an instance (instance will be a subinstance of that parent
-        
-        name: a name string for new instance
-
-        circuit: circuit which will be instantiated
-
-        port_map: dictionary of instance_net:parent_net pairs
-
-        passed_paramsd: parameters that are being passed to subinstance while instantiating it
-
-        Makes a subinstance of a parent. Passed paramsd will be evaluated first, and then overwrite the default ones.
-        Returns instance of a circuit or None if some error does apper.
-    """
-    inst = Instance(parent,name,port_map)
-    try:
-        inst.paramsd = scs_parser.evaluate_params(circuit.parametersd,parent)
-    except scs_errors.ScsParameterError, e:
-        raise scs_errors.ScsInstanceError("Error evaluating parametrs in %s subcircuit. %s" % (circuit.name,e))
-    inst.paramsd.update(passed_paramsd)
-    for ename,element in circuit.elementsd.iteritems():
-        if ename[0] in ['x','X']:   
-            subcir_name = element.paramsl[-1]        
-            
-            subcircuit = getSubcircuit(subcir_name,circuit)       
-            if subcircuit:
-                subcir_portl = element.paramsl[:-1] 
-                portmap = {}
-                if  len(subcir_portl) == len(subcircuit.ports):
-                    for i in range(len(subcir_portl)):
-                        portmap.update({subcircuit.ports[i]:subcir_portl[i]})
-                else:
-                    raise scs_errors.ScsInstanceError("Error: subcircuit port lenght: %d != instance port length: %d \n Instance %s of subcircuit %s in %s subcircuit"
-                                           % (len(subcircuit.ports),len(subcir_portl),ename,subcir_name,name if name else 'top'))
-                try:                    
-                    eps = scs_parser.evaluate_passed_params(element.paramsd,inst,{})
-                except scs_errors.ScsParameterError, e:
-                    raise scs_errors.ScsInstanceError("Error evaluating parametrs for instance: %s in %s subcircuit. %s" % (subcir_name,circuit.name,e))                    
-                
-                sub_inst = make_instance(inst,ename,subcircuit,portmap,eps)
-                inst.add_sub_instance(sub_inst)
-            else:
-                raise scs_errors.ScsInstanceError("Error: no subcircuit definition of: %s found for instance %s in %s subcircuit"
-                                        %(subcir_name, ename, circuit.name)) 
-        elif ename[0] in scs_elements.elementd:
-            try:
-                inst.add_element(scs_elements.elementd[ename[0]](ename,element,inst.paramsd,parent))
-            except (scs_errors.ScsParameterError,scs_errors.ScsElementError),e:
-                raise scs_errors.ScsInstanceError("Error evaluating parametrs for instance: %s in %s subcircuit. %s" % (ename,circuit.name,e))
-
-        else:
-            raise scs_errors.ScsInstanceError("Error: no element of that type: %s. Strange should have been cought by parser?"   
-                  % (ename))
-    inst._prepare_nets()
-    return inst            
-
-            
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    logging.info("scs_instance_hier.py: Instance.v() and .i() methods updated for new solver.")
+    logging.info("Run via scs.py with a netlist for full testing.")

@@ -1,0 +1,14 @@
+INFO: scs.py:56: Starting SCS v0.0.1. Input: test_all_linear.sp, Output Prefix: test_all_linear
+INFO: scs.py:57: Runtime: 2025-06-13 10:03:11
+INFO: scs_parser.py:427: Reached .END for top-level circuit test_all_linear. End of parsing.
+INFO: scs.py:71: Input file parsed in: 0.0110 s
+ERROR: scs_instance_hier.py:256: Unexpected error in make_top_instance for test_all_linear: name 'current_instance' is not defined
+Traceback (most recent call last):
+  File "/app/symbolic_circuit_solver-master/scs_instance_hier.py", line 251, in make_top_instance
+    return make_instance(None, circuit_template.name, circuit_template, {}, {})
+  File "/app/symbolic_circuit_solver-master/scs_instance_hier.py", line 187, in make_instance
+    evaluated_value_sympy = _ensure_sympy_expr(value_expr_str, comp_def_name, current_instance.paramsd, parent_instance)
+  File "/app/symbolic_circuit_solver-master/scs_instance_hier.py", line 54, in _ensure_sympy_expr
+    instance_context=current_instance # evaluate_param needs the instance for which params are being defined
+NameError: name 'current_instance' is not defined
+ERROR: scs.py:79: Failed to instantiate a circuit.

@@ -99,15 +99,17 @@ class TopCircuit(Circuit):
         created_print_file = False
 
         for analysis in self.analysisl:
-            time1 = time.clock()
+            time1 = time.clock() # time.clock() is deprecated in Py3, time.perf_counter() or time.process_time() preferred
             if not created_print_file:
-                with open(results_filename, 'w'):
-                    created_print_file = True
+                with open(results_filename, 'w'): # Will create or overwrite
+                    created_print_file = True # This flag seems redundant if file is opened in 'w' each time analysis runs
+                                            # Or it means only first analysis creates/overwrites, subsequent append.
+                                            # However, typical use is one analysis run at a time.
             try:
                 scs_analysis.analysis_dict[analysis.type](analysis.paramsd, analysis.paramsl, instance, file_prefix)
                 logging.info("Analysis: .%s '%s' performed in: %f s" %
                              (analysis.type, analysis.paramsl[0], time.clock() - time1))
-            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError), e:
+            except (scs_errors.ScsInstanceError, scs_errors.ScsParameterError, scs_errors.ScsAnalysisError) as e: # Corrected Syntax
                 logging.warning(e)
                 logging.warning("Analysis: %s %s not performed" % (analysis.type, analysis.paramsl[0]))
 

@@ -1,0 +1,9 @@
+INFO: scs.py:56: Starting SCS v0.0.1. Input: test_R.sp, Output Prefix: test_R
+INFO: scs.py:57: Runtime: 2025-06-13 09:56:37
+INFO: scs_parser.py:427: Reached .END for top-level circuit test_R. End of parsing.
+INFO: scs.py:71: Input file parsed in: 0.0002 s
+WARNING: scs_instance_hier.py:213: No value found for source V1, defaulting to 0.
+INFO: scs.py:83: Instantiated circuit in: 0.0413 s
+INFO: scs_instance_hier.py:112: Instance.check_path_to_gnd called - placeholder.
+INFO: scs_instance_hier.py:113: Instance.check_voltage_loop called - placeholder.
+INFO: scs.py:102: Placeholder solve() called, duration: 0.0000 s

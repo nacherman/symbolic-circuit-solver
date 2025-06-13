@@ -1,149 +1,197 @@
 import sympy as sp
-from symbolic_components import (
-    Resistor, VoltageSource, CurrentSource,
-    VCVS, VCCS, CCVS, CCCS,
-    Capacitor, Inductor, omega as omega_sym
-)
-from symbolic_solver import solve_circuit
-from utils import print_solutions, format_symbolic_expression, generate_node_map_text
-from spice_parser import parse_netlist
+import sys
+import os
+import logging # Added for logging consistency
 
+# Add symbolic_circuit_solver-master to path
+master_proj_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'symbolic_circuit_solver-master')
+if master_proj_path not in sys.path:
+    sys.path.insert(0, master_proj_path)
 
-# --- Placeholder for other test functions ---
-def setup_detailed_h_bridge_components():
-    print("\n--- (Skipping setup_detailed_h_bridge_components in this run) ---")
-    return [], {}
-def solve_detailed_h_bridge_symbolically(components, symbols_map): # Old symbolic attempt
-    print("\n--- (Skipping solve_detailed_h_bridge_symbolically in this run) ---")
-def solve_detailed_h_bridge_for_numerical_R3(components, symbols_map): # Old numerical attempt
-    print("\n--- (Skipping solve_detailed_h_bridge_for_numerical_R3 in this run) ---")
-def run_power_calculation_tests():
-    print("\n--- (Skipping Power Calculation Tests in this run) ---")
-def run_controlled_sources_tests():
-    print("\n--- (Skipping Controlled Sources Tests in this run) ---")
-def run_ac_circuit_tests():
-    print("\n--- (Skipping AC Circuit Tests in this run) ---")
-def run_spice_import_and_map_test():
-    print("\n--- (Skipping SPICE Import and Node Map Test in this run) ---")
+try:
+    # From scs_parser, using parse_file as it seems to be the main entry point there
+    from scs_parser import parse_file as scs_parse_netlist # Renamed to avoid conflict
+    from scs_instance_hier import make_top_instance
+    from scs_circuit import TopCircuit
+except ImportError as e:
+    print(f"ERROR: Could not import from symbolic_circuit_solver-master: {e}")
+    logging.error(f"ERROR: Could not import from symbolic_circuit_solver-master: {e}")
+    # Define dummies so the rest of the file can be parsed
+    def parse_netlist(filename, circ_obj): print(f"Dummy parse_netlist for {filename}"); return None
+    def make_top_instance(c): print("Dummy make_top_instance"); return None
+    class TopCircuit:
+        def __init__(self):
+            self.elementsd = {}
+            self.parametersd = {}
+            self.subcircuitsd = {}
+
+# Import my component classes for type checking
+from symbolic_components import Resistor, Capacitor, Inductor, VoltageSource, CurrentSource, \
+                                VCVS, VCCS, CCVS, CCCS, s_sym
+# from utils import print_solutions # Not strictly needed for this instantiation test
+
+# --- Placeholder for other test functions from the original file ---
+# To keep the file clean for this focused test, these are omitted in the final overwrite
+# but would be present in a real scenario if appending.
 # --- End of Placeholders ---
 
+def test_make_instance_comprehensive():
+    print("\n--- Testing Comprehensive Instantiation via scs_instance_hier.make_top_instance ---")
+    logging.info("--- Testing Comprehensive Instantiation via scs_instance_hier.make_top_instance ---")
 
-def solve_h_bridge_r3_final_symbolic():
-    print("\n--- Solving User's H-Bridge for FULLY SYMBOLIC R3 (Target: ~56.18 Ohms) ---")
-    print("    Using new solver interface: R3 = f(U1_p, R1_p,..., V_N2_target, I_N3toN4_target)")
+    netlist_filename = os.path.join(master_proj_path, 'test_comprehensive.sp')
 
-    # Define top-level symbolic parameters for the formula
-    U1_p = sp.Symbol('U1_p')
-    R1_p, R2_p, R4_p, R5_p, R6_p = sp.symbols('R1_p R2_p R4_p R5_p R6_p')
-    R3_to_solve = sp.Symbol('R3_final')
-    V_N2_target = sp.Symbol('V_N2_target')
-    I_N3toN4_target = sp.Symbol('I_N3toN4_target')
+    if not os.path.exists(netlist_filename):
+        msg = f"ERROR: Netlist file {netlist_filename} not found. Ensure it's created by the subtask."
+        print(msg); logging.error(msg)
+        return
 
-    # Component's internal value symbols (these will be equated to params via known_specifications)
-    V_V1_actual_sym = sp.Symbol('V_V1_actual_val')
-    R_R1_actual_sym = sp.Symbol('R_R1_actual_val')
-    R_R2_actual_sym = sp.Symbol('R_R2_actual_val')
-    R_R4_actual_sym = sp.Symbol('R_R4_actual_val')
-    R_R5_actual_sym = sp.Symbol('R_R5_actual_val')
-    R_R6_actual_sym = sp.Symbol('R_R6_actual_val')
+    msg = f"Attempting to parse netlist: {netlist_filename}"; print(msg); logging.info(msg)
+    top_circuit_def = TopCircuit()
+    parsed_top_circuit = scs_parse_netlist(netlist_filename, top_circuit_def)
 
-    # Instantiate Circuit Components based on user's SPICE netlist structure from image "Schaltung_gesamt"
-    # Nodes: '0' (GND), '1' (Vsource out), '2' (R1-R2-R4-R6 junction),
-    #        '3' (R2-R3-VI junction), '4' (R4-R5-VI junction)
+    if not parsed_top_circuit or not parsed_top_circuit.elementsd: # elementsd is for top-level
+        msg = "ERROR: Netlist parsing failed or resulted in no top-level elements."
+        print(msg); logging.error(msg)
+        return
 
-    V1_comp = VoltageSource('V1', '1', '0', voltage_val_sym=V_V1_actual_sym)
-    R1_comp = Resistor('R1', '1', '2', resistance_sym=R_R1_actual_sym)
-    R2_comp = Resistor('R2', '2', '3', resistance_sym=R_R2_actual_sym)
-    R3_comp = Resistor('R3', '3', '0', resistance_sym=R3_to_solve)
-    R4_comp = Resistor('R4', '2', '4', resistance_sym=R_R4_actual_sym)
-    R5_comp = Resistor('R5', '4', '0', resistance_sym=R_R5_actual_sym)
-    R6_comp = Resistor('R6', '2', '0', resistance_sym=R_R6_actual_sym)
+    print(f"Netlist parsed. Top-level element definitions: {len(parsed_top_circuit.elementsd)}")
+    logging.info(f"Netlist parsed. Top-level element definitions: {len(parsed_top_circuit.elementsd)}")
+    print(f"Subcircuit definitions: {list(parsed_top_circuit.subcircuitsd.keys())}")
+    logging.info(f"Subcircuit definitions: {list(parsed_top_circuit.subcircuitsd.keys())}")
 
-    # Dummy source VI to measure/constrain current I from Node 3 to Node 4
-    VI_dummy = VoltageSource('VI', '3', '4', voltage_val_sym=sp.Integer(0))
+    msg = "Attempting to instantiate circuit using make_top_instance..."; print(msg); logging.info(msg)
+    top_instance = make_top_instance(parsed_top_circuit)
 
-    components = [V1_comp, R1_comp, R2_comp, R3_comp, R4_comp, R5_comp, R6_comp, VI_dummy]
+    if not top_instance:
+        msg = "ERROR: make_top_instance failed to return a top_instance."
+        print(msg); logging.error(msg)
+        return
+    if not top_instance.elements and not top_instance.subinstances :
+        msg = "ERROR: make_top_instance resulted in an empty top_instance (no elements or subinstances)."
+        print(msg); logging.error(msg)
+        return
 
-    known_specifications = [
-        sp.Eq(V1_comp.V_source_val, U1_p),
-        sp.Eq(R1_comp.R_val, R1_p),
-        sp.Eq(R2_comp.R_val, R2_p),
-        sp.Eq(R4_comp.R_val, R4_p),
-        sp.Eq(R5_comp.R_val, R5_p),
-        sp.Eq(R6_comp.R_val, R6_p),
-        sp.Eq(sp.Symbol('V_2'), V_N2_target),
-        sp.Eq(VI_dummy.I_comp, I_N3toN4_target)
-    ]
+    print(f"Circuit instantiation complete. Top-level elements: {len(top_instance.elements)}, Subinstances: {len(top_instance.subinstances)}")
+    logging.info(f"Circuit instantiation complete. Top-level elements: {len(top_instance.elements)}, Subinstances: {len(top_instance.subinstances)}")
+    print("\nVerifying component types and symbolic values:")
+    logging.info("\nVerifying component types and symbolic values:")
 
-    unknowns_to_derive = [R3_to_solve, sp.Symbol('V_3'), sp.Symbol('V_4')]
-    # Adding V_3 and V_4 to see their symbolic expressions as well for verification.
-    # Other symbols like node voltages V_1, V_2 and component currents will be solved internally.
+    all_checks_passed = True
 
-    print("Attempting to solve for fully symbolic R3 formula using new solver interface...")
-    solution_list_final = solve_circuit(
-        components,
-        unknowns_to_derive,
-        known_specifications,
-        ground_node='0'
-    )
+    expected_top_level = {
+        'VS1': (VoltageSource, 'voltage'),
+        'R_INPUT': (Resistor, 'resistance'),
+        'C_MAIN': (Capacitor, 'capacitance'),
+        'L_MAIN': (Inductor, 'inductance'),
+        'E_VCVS': (VCVS, 'gain'),
+        'VS_SENSE': (VoltageSource, 'voltage'),
+        'R_SENSE_PATH': (Resistor, 'resistance'),
+        'H_CCVS': (CCVS, 'transresistance'),
+        'F_CCCS': (CCCS, 'gain'),
+        'R_LOAD_X': (Resistor, 'resistance')
+    }
 
-    print_solutions(solution_list_final, title=f"H-Bridge Final Symbolic Solution (Target: {R3_to_solve.name})")
+    for name, expected_type_tuple in expected_top_level.items():
+        expected_type, value_key = expected_type_tuple
+        if name not in top_instance.elements:
+            msg = f"  ERROR: Top-level component {name} not found in instantiated elements."
+            print(msg); logging.error(msg); all_checks_passed = False; continue
 
-    r3_formula_final = None
-    if solution_list_final and solution_list_final[0] and R3_to_solve in solution_list_final[0]:
-        r3_formula_final = solution_list_final[0][R3_to_solve]
-        print(f"\n** Fully Symbolic Formula for {R3_to_solve.name}: **")
-        print(format_symbolic_expression(r3_formula_final))
+        elem_instance = top_instance.elements[name]
+        print(f"  Component: {name} (Type: {elem_instance.__class__.__name__})")
+        if not isinstance(elem_instance, expected_type):
+            msg = f"    ERROR: Expected type {expected_type.__name__} but got {elem_instance.__class__.__name__}"
+            print(msg); logging.error(msg); all_checks_passed = False
+        else:
+            print(f"    OK: Type is {expected_type.__name__}.")
+            main_val = elem_instance.values.get(value_key)
+            if main_val is None:
+                msg = f"    ERROR: Main value key '{value_key}' not found in .values for {name}."
+                print(msg); logging.error(msg); all_checks_passed = False
+            elif not isinstance(main_val, sp.Expr):
+                msg = f"    ERROR: Main value for {name} is not a Sympy expression: {main_val} (Type: {type(main_val)})"
+                print(msg); logging.error(msg); all_checks_passed = False
+            else:
+                print(f"    OK: Main value '{value_key}': {main_val} (Type: {type(main_val)})")
+                if name == 'VS1':
+                    # Netlist: SIN({0} {VSIN_AMP} {1K} {0} {0} {VSIN_PHASE_DEG})
+                    # Params: VSIN_AMP = 2, VSIN_PHASE_DEG = 45
+                    # Expected AC phasor: 2 * exp(I * 45 * pi/180)
+                    target_vs1_val = sp.sympify(2) * sp.exp(sp.I * sp.sympify('45') * sp.pi / 180)
+                    # Note: sp.simplify might be needed if expression forms differ but are equivalent
+                    if sp.simplify(main_val - target_vs1_val) != 0:
+                         msg = f"    ERROR: VS1 value mismatch. Got {main_val.evalf(chop=True)}, Expected approx {target_vs1_val.evalf(chop=True)}"
+                         print(msg); logging.error(msg); all_checks_passed = False
+                    else: print(f"    OK: VS1 value matches expected phasor {target_vs1_val.evalf(chop=True)}.")
 
-        numerical_subs = {
-            U1_p: 1.0, R1_p: 180.0, R2_p: 100.0, R4_p: 22.0, R5_p: 39.0, R6_p: 39.0,
-            V_N2_target: 0.1,
-            I_N3toN4_target: -559e-6 # Current I from Node 3 to Node 4 is -559uA
-        }
-
-        print(f"\nSubstituting numerical values into R3 formula: { {s.name:v for s,v in numerical_subs.items()} }")
-
-        # Substitute known numerical values into the symbolic formula for R3
-        r3_numerical_value = r3_formula_final.subs(numerical_subs)
-
-        print(f"** Numerical value for {R3_to_solve.name}: {r3_numerical_value.evalf(n=7, chop=True)} **")
-        print("(Expected from problem description: ~56.18 Ohms based on U3, U4 values)")
-
-        # Verification of intermediate V_3 (V_n_L_mid in prior terminology) and V_4 (V_n_R_mid)
-        V3_sym = sp.Symbol('V_3')
-        V4_sym = sp.Symbol('V_4')
-
-        if V3_sym in solution_list_final[0]:
-            v3_formula = solution_list_final[0][V3_sym]
-            v3_numerical = v3_formula.subs(numerical_subs)
-            # Expected V3 (U3 in problem image) = 0.087702V
-            # This was calculated in problem as: V_N2_target - R2_p * I_R2 where I_R2 needs to be found.
-            # Or, using the problem's direct I(VI) = -559e-6 A (current 3->4)
-            # V4 = V3 - I(VI)*R_VI_dummy (but R_VI_dummy is 0 effectively for ideal current measurement)
-            # The problem text calculated U3 and U4 based on I_R2345_gesamt and current division.
-            # Our solver uses KCL/KVL. Let's see what it gets.
-            # The problem states U3 = 0.087702V for R3=56.18.
-            print(f"  Solved V_3 (U3 in problem): {v3_numerical.evalf(n=7, chop=True)} (Problem's U3 value for R3=56.18 was ~0.087702V)")
-
-        if V4_sym in solution_list_final[0]:
-            v4_formula = solution_list_final[0][V4_sym]
-            v4_numerical = v4_formula.subs(numerical_subs)
-            # The problem states U4 = 0.1V - R4_p * I_R4 where I_R4 needs to be found.
-            # Or, U4 = 0.1V (V_N2_target) - I_R4 * R4_p
-            # The problem states U4 = 0.09642V for R3=56.18.
-            print(f"  Solved V_4 (U4 in problem): {v4_numerical.evalf(n=7, chop=True)} (Problem's U4 value for R3=56.18 was ~0.09642V)")
-
+    if 'X_FILTER1' not in top_instance.subinstances:
+        msg = "  ERROR: Subcircuit X_FILTER1 not found."
+        print(msg); logging.error(msg); all_checks_passed = False
     else:
-        print(f"Could not find a fully symbolic formula for {R3_to_solve.name}.")
+        x1_instance = top_instance.subinstances['X_FILTER1']
+        print(f"\n  Subcircuit Instance: X_FILTER1 (Type: {x1_instance.__class__.__name__})")
+        logging.info(f"  Subcircuit Instance: X_FILTER1 (Type: {x1_instance.__class__.__name__})")
+        # PARAM CAP_VAL = {0.1uF * 2} -> 0.2uF
+        # X_FILTER1 C_SUBCKT={CAP_VAL/2} -> 0.1uF
+        expected_r_subckt = sp.sympify("2000.0")
+        expected_c_subckt = sp.sympify("0.1e-6")
 
+        # Parameters in instance.paramsd are stored with string keys by scs_parser.evaluate_params
+        r_subckt_val_from_inst = x1_instance.paramsd.get('R_SUBCKT')
+        c_subckt_val_from_inst = x1_instance.paramsd.get('C_SUBCKT')
+
+        print(f"    X_FILTER1 Parameters (evaluated): R_SUBCKT={r_subckt_val_from_inst}, C_SUBCKT={c_subckt_val_from_inst}")
+        logging.info(f"    X_FILTER1 Parameters (evaluated): R_SUBCKT={r_subckt_val_from_inst}, C_SUBCKT={c_subckt_val_from_inst}")
+
+        if not (r_subckt_val_from_inst is not None and abs(r_subckt_val_from_inst.evalf() - expected_r_subckt.evalf()) < 1e-9 and \
+                c_subckt_val_from_inst is not None and abs(c_subckt_val_from_inst.evalf() - expected_c_subckt.evalf()) < 1e-9):
+            msg = f"    ERROR: X_FILTER1 parameters not evaluated as expected. Expected R_SUBCKT={expected_r_subckt}, C_SUBCKT={expected_c_subckt}. Got R_SUBCKT={r_subckt_val_from_inst}, C_SUBCKT={c_subckt_val_from_inst}"
+            print(msg); logging.error(msg); all_checks_passed = False
+        else:
+            print(f"    OK: X_FILTER1 parameters R_SUBCKT={r_subckt_val_from_inst}, C_SUBCKT={c_subckt_val_from_inst} evaluated correctly.")
+
+        expected_sub_elements = {
+            # The values for R_SUB, C_SUB inside subcircuit will be the evaluated numerical values
+            # because scs_parser.evaluate_params (called by _ensure_sympy_expr) resolves them using
+            # the subcircuit instance's parametersd (which has R_SUBCKT=2000, C_SUBCKT=0.1u).
+            'R_SUB': (Resistor, 'resistance', expected_r_subckt),
+            'C_SUB': (Capacitor, 'capacitance', expected_c_subckt),
+            'G_VCCS_SUB': (VCCS, 'transconductance', sp.sympify("0.1"))
+        }
+        for name, expected_sub_type_tuple in expected_sub_elements.items():
+            expected_type, value_key, expected_numerical_val = expected_sub_type_tuple
+            if name not in x1_instance.elements:
+                msg = f"    ERROR: Sub-element {name} not found in X_FILTER1."
+                print(msg); logging.error(msg); all_checks_passed = False; continue
+
+            elem_instance = x1_instance.elements[name]
+            print(f"    Sub-element: {name} (Type: {elem_instance.__class__.__name__})")
+            if not isinstance(elem_instance, expected_type):
+                msg = f"      ERROR: Expected type {expected_type.__name__} but got {elem_instance.__class__.__name__}"
+                print(msg); logging.error(msg); all_checks_passed = False
+            else:
+                print(f"      OK: Type is {expected_type.__name__}.")
+                main_val = elem_instance.values.get(value_key)
+                if main_val is None:
+                     msg = f"      ERROR: Main value key '{value_key}' not found for {name}."
+                     print(msg); logging.error(msg); all_checks_passed = False
+                elif not isinstance(main_val, sp.Expr):
+                     msg = f"      ERROR: Main value for {name} is not a Sympy expression: {main_val}"
+                     print(msg); logging.error(msg); all_checks_passed = False
+                elif abs(main_val.evalf() - expected_numerical_val.evalf()) > 1e-9 :
+                     msg = f"      ERROR: Value mismatch for {name}. Got {main_val.evalf()}, Expected {expected_numerical_val.evalf()}"
+                     print(msg); logging.error(msg); all_checks_passed = False
+                else:
+                     print(f"      OK: Value for {name} matches expected {expected_numerical_val.evalf()}.")
+
+    if all_checks_passed:
+        msg = "\nComprehensive Instantiation Test PASSED: All components and subcircuit parts correctly instantiated."
+        print(msg); logging.info(msg)
+    else:
+        msg = "\nComprehensive Instantiation Test FAILED: Errors detailed above."
+        print(msg); logging.error(msg)
 
 if __name__ == '__main__':
-    print("\n--- Activating Fully Symbolic H-Bridge R3 Test (Final Attempt) ---")
-    # Comment out other tests
-    # run_power_calculation_tests()
-    # run_controlled_sources_tests()
-    # run_ac_circuit_tests()
-    # run_spice_import_and_map_test()
-
-    solve_h_bridge_r3_final_symbolic()
-    print("\nFinal H-Bridge R3 symbolic problem execution complete.")
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+    test_make_instance_comprehensive()
