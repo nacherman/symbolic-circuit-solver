@@ -4,7 +4,7 @@ Parsing functions
 Here are all functions with deal with any kind of parsing the input data,
 the most importing one being parseFile which reads the file and makes top circuit.
 There are also function which deals with convering expresions for paramters and so on.
- 
+
 """
 import re
 import sympy

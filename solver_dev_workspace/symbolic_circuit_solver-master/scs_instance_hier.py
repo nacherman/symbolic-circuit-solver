@@ -112,7 +112,7 @@ class Instance(object):
                     self.elements_on_net[parent_scope_net_name_str].append(sub_inst_obj)
             else: self.elements_on_net[parent_scope_net_name_str] = [sub_inst_obj]
         self.subinstances[sub_inst_obj.name] = sub_inst_obj # Store by its (local) name
-    
+
     def _prepare_nets(self): # Populates self.nets for MNA compatibility if needed by other parts
         self.inner_nets = []; self.port_nets = []; self.net_name_index = {}
         all_circuit_nodes = set() # Use a set for unique node names
@@ -134,7 +134,7 @@ class Instance(object):
                 self.port_nets.append(net_name_str)
             elif net_name_str != ground_node_name_for_solver_context: # Internal node
                 self.inner_nets.append(net_name_str)
-        
+
         self.inner_nets = sorted(list(set(self.inner_nets)))
         self.port_nets = sorted(list(set(self.port_nets)))
         self.nets = self.inner_nets + self.port_nets
@@ -200,12 +200,12 @@ class Instance(object):
         net1_str = str(net1_str); net2_str = str(net2_str) if net2_str is not None else ground_node_name_for_solver_context
         if self.solved_dict is None:
             logging.warning(f"Instance.v({net1_str},{net2_str}) called before solve. Returning 0."); return sp.Integer(0)
-        
+
         v1_sym = sp.Symbol(f"V_{net1_str}")
         v2_sym = sp.Symbol(f"V_{net2_str}")
         v1_val = self.solved_dict.get(v1_sym, self.V.get(net1_str)) if net1_str != ground_node_name_for_solver_context else sp.Integer(0)
         v2_val = self.solved_dict.get(v2_sym, self.V.get(net2_str)) if net2_str != ground_node_name_for_solver_context else sp.Integer(0)
-        
+
         if v1_val is None: logging.warning(f"V({net1_str}) not found in solution. Defaulting to 0."); v1_val = sp.Integer(0)
         if v2_val is None: logging.warning(f"V({net2_str}) not found in solution. Defaulting to 0."); v2_val = sp.Integer(0)
         return v1_val - v2_val
@@ -214,11 +214,11 @@ class Instance(object):
         element_name_hier_str = str(element_name_hier_str).upper() # Match SPICE case-insensitivity
         if self.solved_dict is None:
             logging.warning(f"Instance.i({element_name_hier_str}) called before solve. Returning 0."); return sp.Integer(0)
-        
+
         # The element_name_hier_str is the mangled name, e.g. "R1" or "X1.R1"
         # The I_comp symbol is I_R1 or I_X1.R1.
         i_comp_sym_to_lookup = sp.Symbol(f"I_{element_name_hier_str}")
-        
+
         if i_comp_sym_to_lookup in self.solved_dict:
             return self.solved_dict[i_comp_sym_to_lookup]
         else: # Fallback: search for the component instance by mangled name to get its I_comp
@@ -289,7 +289,7 @@ def make_instance(parent_instance, instance_name_str, circuit_template, instance
             if subcircuit_definition_template:
                 # Nodes on X-line are relative to current_instance's scope. Resolve them.
                 subckt_instance_nodes_resolved = [resolve_node_name(n) for n in generic_element_template.paramsl[:-1]]
-                
+
                 # Port map for the new sub_inst_obj: maps its definition's port names to these resolved_nodes
                 new_sub_port_map = {}
                 if len(subckt_instance_nodes_resolved) == len(subcircuit_definition_template.ports):
@@ -312,7 +312,7 @@ def make_instance(parent_instance, instance_name_str, circuit_template, instance
             node1_mangled = resolve_node_name(raw_nodes_str_list[0])
             node2_mangled = resolve_node_name(raw_nodes_str_list[1])
             evaluated_value_sympy = None
-            
+
             if CompClass in [Resistor, Capacitor, Inductor]:
                 value_expr_str = params_dict.get(comp_type_char.lower(), params_dict.get(comp_type_char.upper(), params_dict.get('value', raw_nodes_str_list[2] if len(raw_nodes_str_list) > 2 else None)))
                 if value_expr_str is None: raise scs_errors.ScsInstanceError(f"No value for {comp_name_mangled}")
@@ -407,7 +407,7 @@ def make_instance(parent_instance, instance_name_str, circuit_template, instance
                 evaluated_factor_sympy = _ensure_sympy_expr(factor_expr_str, comp_name_mangled+"_factor", current_instance.paramsd, current_instance.parent, current_instance)
                 if CompClass == CCVS: new_comp_instance = CCVS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_comp_name_mangled_for_symbol, transresistance_sym=evaluated_factor_sympy)
                 else: new_comp_instance = CCCS(comp_name_mangled, node1_mangled, node2_mangled, ctrl_comp_name_mangled_for_symbol, gain_sym=evaluated_factor_sympy)
-            
+
             if new_comp_instance:
                 current_instance.add_element(new_comp_instance)
             elif comp_type_char not in ['X']:

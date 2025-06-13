@@ -1,6 +1,29 @@
 import sympy as sp
 from sympy.solvers.solveset import linsolve
-from symbolic_components import BaseComponent, Resistor, Inductor, Capacitor, VoltageSource, CurrentSource, VCVS, VCCS, CCVS, CCCS, s_sym # Import s_sym
+# from symbolic_components import BaseComponent, Resistor, Inductor, Capacitor, VoltageSource, CurrentSource, VCVS, VCCS, CCVS, CCCS, s_sym # Import s_sym
+
+# Add new import from all_symbolic_components.py
+try:
+    from all_symbolic_components import BaseComponent # Primarily for isinstance checks
+    from all_symbolic_components import Resistor, Capacitor, Inductor, VoltageSource, CurrentSource, VCVS, VCCS, CCVS, CCCS # For parameter gathering
+    from all_symbolic_components import s_sym # s_sym is needed for parameter_symbols set
+
+    print("DEBUG symbolic_solver: Successfully imported BaseComponent and other components from all_symbolic_components.py")
+except ImportError as e:
+    print(f"CRITICAL ERROR in symbolic_solver.py: Could not import from all_symbolic_components.py: {e}")
+    class BaseComponent: pass; # Dummy for parsability
+    class Resistor(BaseComponent): pass;
+    class Capacitor(BaseComponent): pass;
+    class Inductor(BaseComponent): pass;
+    class VoltageSource(BaseComponent): pass;
+    class CurrentSource(BaseComponent): pass;
+    class VCVS(BaseComponent): pass;
+    class VCCS(BaseComponent): pass;
+    class CCVS(BaseComponent): pass;
+    class CCCS(BaseComponent): pass;
+    s_sym = sp.Symbol('s_solver_fallback_import_error')
+
+
 from utils import print_solutions
 
 

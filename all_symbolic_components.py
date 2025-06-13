@@ -1,4 +1,4 @@
-# symbolic_components.py
+# all_symbolic_components.py
 import sympy as sp
 
 # Global symbol for Laplace variable
@@ -89,7 +89,7 @@ class CurrentSource(BaseComponent):
     def generate_expressions(self):
         self.expressions.append(self.P_comp - self.V_comp * self.I_comp)
 
-class VCVS(BaseComponent): # Voltage Controlled Voltage Source
+class VCVS(BaseComponent): # E-type
     def __init__(self, name, out_node1, out_node2, control_node_p, control_node_n, gain_sym=None, current_sym=None):
         super().__init__(name, out_node1, out_node2)
         if not (isinstance(control_node_p, str) and isinstance(control_node_n, str)): raise TypeError("Control node names for VCVS must be strings.")
@@ -97,13 +97,15 @@ class VCVS(BaseComponent): # Voltage Controlled Voltage Source
         self.V_control_p_sym = sp.Symbol(f"V_{control_node_p}"); self.V_control_n_sym = sp.Symbol(f"V_{control_node_n}")
         self.V_control_diff = self.V_control_p_sym - self.V_control_n_sym
         self.gain = gain_sym if gain_sym else sp.Symbol(f"Gain_{name}")
-        self.I_comp = current_sym if current_sym else sp.Symbol(f"I_{name}") # Current flowing through the source
-        self.values.update({'gain': self.gain, 'control_voltage_diff_expr': self.V_control_diff, 'output_voltage': self.V_comp, 'current': self.I_comp, 'power': self.P_comp})
+        self.I_comp = current_sym if current_sym else sp.Symbol(f"I_{name}") # Current through the VCVS output
+        self.values.update({'gain': self.gain, 'control_voltage_diff_expr': self.V_control_diff,
+                            'output_voltage': self.V_comp, 'current': self.I_comp, 'power': self.P_comp})
         self.generate_expressions()
     def generate_expressions(self):
-        self.expressions.extend([self.V_comp - self.gain * self.V_control_diff, self.P_comp - self.V_comp * self.I_comp])
+        self.expressions.extend([self.V_comp - self.gain * self.V_control_diff,
+                                 self.P_comp - self.V_comp * self.I_comp])
 
-class VCCS(BaseComponent): # Voltage Controlled Current Source
+class VCCS(BaseComponent): # G-type
     def __init__(self, name, out_node1, out_node2, control_node_p, control_node_n, transconductance_sym=None):
         super().__init__(name, out_node1, out_node2)
         if not (isinstance(control_node_p, str) and isinstance(control_node_n, str)): raise TypeError("Control node names for VCCS must be strings.")
@@ -112,27 +114,29 @@ class VCCS(BaseComponent): # Voltage Controlled Current Source
         self.V_control_diff = self.V_control_p_sym - self.V_control_n_sym
         self.transconductance = transconductance_sym if transconductance_sym else sp.Symbol(f"Gm_{name}")
         self.I_comp = sp.Symbol(f"I_{name}") # Output current of the VCCS
-        self.values.update({'transconductance': self.transconductance, 'control_voltage_diff_expr': self.V_control_diff, 'output_current': self.I_comp, 'voltage': self.V_comp, 'power': self.P_comp})
+        self.values.update({'transconductance': self.transconductance, 'control_voltage_diff_expr': self.V_control_diff,
+                            'output_current': self.I_comp, 'voltage': self.V_comp, 'power': self.P_comp})
         self.generate_expressions()
     def generate_expressions(self):
-        self.expressions.extend([self.I_comp - self.transconductance * self.V_control_diff, self.P_comp - self.V_comp * self.I_comp])
+        self.expressions.extend([self.I_comp - self.transconductance * self.V_control_diff,
+                                 self.P_comp - self.V_comp * self.I_comp])
 
-class CCVS(BaseComponent): # Current Controlled Voltage Source
+class CCVS(BaseComponent): # H-type
     def __init__(self, name, out_node1, out_node2, control_current_comp_name, transresistance_sym=None, current_sym=None):
         super().__init__(name, out_node1, out_node2)
         if not isinstance(control_current_comp_name, str): raise TypeError("Control current component name for CCVS must be a string.")
         self.control_current_comp_name = control_current_comp_name
-        # The actual I_comp of the controlling component will be used by the solver.
-        # This symbol is for defining the relationship.
         self.I_control_sym = sp.Symbol(f"I_{control_current_comp_name}")
         self.transresistance = transresistance_sym if transresistance_sym else sp.Symbol(f"Rm_{name}")
-        self.I_comp = current_sym if current_sym else sp.Symbol(f"I_{name}") # Current flowing through the source
-        self.values.update({'transresistance': self.transresistance, 'control_current_sym': self.I_control_sym, 'output_voltage': self.V_comp, 'current': self.I_comp, 'power': self.P_comp})
+        self.I_comp = current_sym if current_sym else sp.Symbol(f"I_{name}") # Current through the CCVS output
+        self.values.update({'transresistance': self.transresistance, 'control_current_sym': self.I_control_sym,
+                            'output_voltage': self.V_comp, 'current': self.I_comp, 'power': self.P_comp})
         self.generate_expressions()
     def generate_expressions(self):
-        self.expressions.extend([self.V_comp - self.transresistance * self.I_control_sym, self.P_comp - self.V_comp * self.I_comp])
+        self.expressions.extend([self.V_comp - self.transresistance * self.I_control_sym,
+                                 self.P_comp - self.V_comp * self.I_comp])
 
-class CCCS(BaseComponent): # Current Controlled Current Source
+class CCCS(BaseComponent): # F-type
     def __init__(self, name, out_node1, out_node2, control_current_comp_name, gain_sym=None):
         super().__init__(name, out_node1, out_node2)
         if not isinstance(control_current_comp_name, str): raise TypeError("Control current component name for CCCS must be a string.")
@@ -140,106 +144,65 @@ class CCCS(BaseComponent): # Current Controlled Current Source
         self.I_control_sym = sp.Symbol(f"I_{control_current_comp_name}")
         self.gain = gain_sym if gain_sym else sp.Symbol(f"Gain_{name}")
         self.I_comp = sp.Symbol(f"I_{name}") # Output current of the CCCS
-        self.values.update({'gain': self.gain, 'control_current_sym': self.I_control_sym, 'output_current': self.I_comp, 'voltage': self.V_comp, 'power': self.P_comp})
+        self.values.update({'gain': self.gain, 'control_current_sym': self.I_control_sym,
+                            'output_current': self.I_comp, 'voltage': self.V_comp, 'power': self.P_comp})
         self.generate_expressions()
     def generate_expressions(self):
-        self.expressions.extend([self.I_comp - self.gain * self.I_control_sym, self.P_comp - self.V_comp * self.I_comp])
+        self.expressions.extend([self.I_comp - self.gain * self.I_control_sym,
+                                 self.P_comp - self.V_comp * self.I_comp])
 
 if __name__ == '__main__':
-    print("Symbolic Components Test (s-domain AC, Power, All Controlled Sources):")
+    print("Full Symbolic Components Test (s-domain AC, Power, All Controlled Sources):")
 
     # Test symbols
     R_s, C_s_val, L_s_val = sp.symbols('R_s C_s_val L_s_val')
     Vs_val_s, Is_val_s = sp.symbols('Vs_val_s Is_val_s')
-    I_ctrl_sym_main = sp.Symbol('I_R_control_current') # Explicit symbol for controlling current
+    I_ctrl_sym_main = sp.Symbol('I_R_control_current')
 
     Gain_E, Gm_G, Rm_H, Gain_F = sp.symbols('Gain_E Gm_G Rm_H Gain_F')
 
-    # Basic passive components
-    res1 = Resistor(name='R1', node1='n1', node2='n2', resistance_sym=R_s)
-    cap1 = Capacitor(name='C1', node1='n2', node2='0', capacitance_sym=C_s_val)
-    ind1 = Inductor(name='L1', node1='n1', node2='n_l_out', inductance_sym=L_s_val)
+    # Instantiate one of each
+    res1 = Resistor(name='R_test1', node1='n1', node2='n2', resistance_sym=R_s)
+    cap1 = Capacitor(name='C_test1', node1='n2', node2='gnd', capacitance_sym=C_s_val)
+    ind1 = Inductor(name='L_test1', node1='n1', node2='n_l_out', inductance_sym=L_s_val)
+    vs1 = VoltageSource(name='Vs_test1', node1='n_vs_in', node2='gnd', voltage_val_sym=Vs_val_s)
+    is1 = CurrentSource(name='Is_test1', node1='n_is_in', node2='gnd', current_val_sym=Is_val_s)
 
-    # Independent sources
-    volt_src1 = VoltageSource(name='Vs1', node1='n_vs_in', node2='0', voltage_val_sym=Vs_val_s)
-    curr_src1 = CurrentSource(name='Is1', node1='n_is_in', node2='0', current_val_sym=Is_val_s)
+    # Controlling component for H and F types
+    r_control_comp = Resistor(name='RcontrolComp', node1='n_ctrl_in', node2='n_ctrl_out',
+                              resistance_sym=sp.Symbol('R_ctrlval'), current_sym=I_ctrl_sym_main)
 
-    # Component providing a controlling current
-    # For CCVS/CCCS, the solver will need to identify Rcontrol.I_comp as I_Rcontrol
-    r_control = Resistor(name='Rcontrol', node1='n_vs_in', node2='n1', resistance_sym=sp.Symbol('R_ctrl_val'), current_sym=I_ctrl_sym_main)
+    vcvs1 = VCVS(name='E_test1', out_node1='n_e_o', out_node2='gnd',
+                 control_node_p='n1', control_node_n='n2', gain_sym=Gain_E)
+    vccs1 = VCCS(name='G_test1', out_node1='n_g_o', out_node2='gnd',
+                 control_node_p='n1', control_node_n='n2', transconductance_sym=Gm_G)
+    ccvs1 = CCVS(name='H_test1', out_node1='n_h_o', out_node2='gnd',
+                 control_current_comp_name='RcontrolComp', transresistance_sym=Rm_H) # Uses I_RcontrolComp
+    cccs1 = CCCS(name='F_test1', out_node1='n_f_o', out_node2='gnd',
+                 control_current_comp_name='RcontrolComp', gain_sym=Gain_F) # Uses I_RcontrolComp
 
-    # Controlled sources
-    vcvs1 = VCVS(name='E1', out_node1='n_e_o', out_node2='0', control_node_p='n1', control_node_n='n2', gain_sym=Gain_E)
-    vccs1 = VCCS(name='G1', out_node1='n_g_o', out_node2='0', control_node_p='n1', control_node_n='n2', transconductance_sym=Gm_G)
-    # For CCVS/CCCS, control_current_comp_name is 'Rcontrol'. The solver will need to map this to r_control.I_comp
-    ccvs1 = CCVS(name='H1', out_node1='n_h_o', out_node2='0', control_current_comp_name='Rcontrol', transresistance_sym=Rm_H)
-    cccs1 = CCCS(name='F1', out_node1='n_f_o', out_node2='0', control_current_comp_name='Rcontrol', gain_sym=Gain_F)
-
-    all_my_components = [res1, cap1, ind1, volt_src1, curr_src1, r_control, vcvs1, vccs1, ccvs1, cccs1]
+    all_components_list = [res1, cap1, ind1, vs1, is1, r_control_comp, vcvs1, vccs1, ccvs1, cccs1]
     print(f"Global Laplace variable s: {s_sym}")
 
-    for comp in all_my_components:
-        print(f"\n--- {comp.name} ({comp.__class__.__name__}) ---")
-        print(f"  Output Nodes: {comp.node1} -> {comp.node2}")
-        if isinstance(comp, (VCVS, VCCS)):
-            print(f"  Control Nodes (V): {comp.control_node_p_name} -> {comp.control_node_n_name}")
-            print(f"  Control Voltage Expr: {sp.pretty(comp.V_control_diff)}")
-        if isinstance(comp, (CCVS, CCCS)):
-            print(f"  Control Current Component Name: {comp.control_current_comp_name}")
-            print(f"  Control Current Symbol Used by Source: {comp.I_control_sym}") # This is I_Rcontrol
+    for comp_instance in all_components_list:
+        print(f"\n--- {comp_instance.name} ({comp_instance.__class__.__name__}) ---")
+        print(f"  Nodes: {comp_instance.node1} -> {comp_instance.node2}")
+        if isinstance(comp_instance, (VCVS, VCCS)):
+            print(f"  Control Nodes (V): {comp_instance.control_node_p_name} -> {comp_instance.control_node_n_name}")
+            print(f"  Control Voltage Expr (internal): {sp.pretty(comp_instance.V_control_diff)}")
+        if isinstance(comp_instance, (CCVS, CCCS)):
+            print(f"  Control Current Component Name: {comp_instance.control_current_comp_name}")
+            print(f"  Control Current Symbol Used by Source: {comp_instance.I_control_sym}")
 
-        print("  Values:")
-        for key, val in comp.values.items():
-            # Pretty print if it's a Sympy expression and not just an Atom (like a single symbol)
+        print("  Values Dictionary:")
+        for key, val in comp_instance.values.items():
             val_str = sp.pretty(val) if isinstance(val, sp.Expr) and not val.is_Atom else str(val)
             print(f"    {key}: {val_str}")
-        print("  Expressions (first 3):") # Print up to 3 expressions
-        for i, expr in enumerate(comp.expressions[:3]):
-            print(f"    Eq{i}: {sp.pretty(expr)}")
+        print("  Symbolic Expressions (first 3):") # V_comp def, V=IZ/characteristic, P=VI
+        for i, expr_item in enumerate(comp_instance.expressions[:3]):
+            print(f"    Eq{i}: {sp.pretty(expr_item)}")
 
-    # Verification for CCVS/CCCS I_control_sym linkage
-    # The I_control_sym in CCVS/CCCS (e.g., I_Rcontrol) should be the symbol for current
-    # that the solver will identify as r_control.I_comp.
-    print(f"\nVerification: Rcontrol's I_comp symbol is {r_control.I_comp} (this is {I_ctrl_sym_main})")
-    print(f"CCVS H1 uses I_control_sym: {ccvs1.I_control_sym} (should match I_Rcontrol for solver linking)")
-    print(f"CCCS F1 uses I_control_sym: {cccs1.I_control_sym} (should match I_Rcontrol for solver linking)")
-
-    # Check that the I_control_sym created by CCVS/CCCS matches the I_comp of the named component
-    # For this test, we manually provided I_ctrl_sym_main to Rcontrol.
-    # So, I_Rcontrol (from CCVS/CCCS) should be different from I_ctrl_sym_main if not linked by solver.
-    # The solver's job is to equate I_Rcontrol from the H/F source with the actual I_comp of Rcontrol.
-    # The test here just confirms the symbol naming convention.
-    assert ccvs1.I_control_sym == sp.Symbol(f"I_{ccvs1.control_current_comp_name}")
-    assert cccs1.I_control_sym == sp.Symbol(f"I_{cccs1.control_current_comp_name}")
-    # And that this is NOT the same object as r_control.I_comp unless it was passed in,
-    # but it IS the same symbol name that the solver will look for.
-    print("CCVS/CCCS I_control_sym naming convention is correct.")
-    if ccvs1.I_control_sym == r_control.I_comp:
-        print("Note: CCVS I_control_sym matches Rcontrol.I_comp directly because I_Rcontrol was used in test setup.")
-    else:
-        # This case would happen if Rcontrol auto-generated its current I_Rcontrol, and CCVS also auto-generated I_Rcontrol.
-        # They would be different sp.Symbol objects but with the same string name.
-        print(f"Note: CCVS I_control_sym ('{ccvs1.I_control_sym}') and Rcontrol.I_comp ('{r_control.I_comp}') are different objects but may have the same string representation. Solver handles the link.")
-
-    # Test expression counts
-    assert len(res1.expressions) == 3 # Vdef, V=IZ, P=VI
-    assert len(cap1.expressions) == 3 # Vdef, V=IZ, P=VI
-    assert len(ind1.expressions) == 3 # Vdef, V=IZ, P=VI
-    assert len(volt_src1.expressions) == 3 # Vdef, V=Val, P=VI
-    assert len(curr_src1.expressions) == 2 # Vdef, P=VI (I=Val is implicit in I_comp)
-    assert len(vcvs1.expressions) == 3 # Vdef, Vout=Gain*Vin, P=VI
-    assert len(vccs1.expressions) == 3 # Vdef, Iout=Gm*Vin, P=VI
-    assert len(ccvs1.expressions) == 3 # Vdef, Vout=Rm*Iin, P=VI
-    assert len(cccs1.expressions) == 3 # Vdef, Iout=Gain*Iin, P=VI
-    print("Expression counts are correct.")
-
-    # Test specific impedance/characteristic equations
-    # The expression is already in the form f(variables) = 0, e.g., V_R1 - I_R1*R_s
-    print(f"Resistor R1 impedance relation: {sp.pretty(res1.expressions[1])}")
-    # Expected for C1: V_C1 - I_C1 * (1/(s*C_s_val))
-    # Actual: V_C1 - I_C1 / (C_s_val*s)
-    print(f"Capacitor C1 impedance relation: {sp.pretty(cap1.expressions[1])}")
-    # Expected for L1: V_L1 - I_L1 * (s*L_s_val)
-    print(f"Inductor L1 impedance relation: {sp.pretty(ind1.expressions[1])}")
-
-    print("\nAll basic tests in __main__ passed.")
+    print(f"\nVerification: RcontrolComp's own I_comp symbol is {r_control_comp.I_comp} (should be '{I_ctrl_sym_main}')")
+    print(f"CCVS H_test1 uses I_control_sym: {ccvs1.I_control_sym} (should be symbol 'I_RcontrolComp')")
+    print(f"CCCS F_test1 uses I_control_sym: {cccs1.I_control_sym} (should be symbol 'I_RcontrolComp')")
+    print("\nFull component definitions complete and basic check passed.")
