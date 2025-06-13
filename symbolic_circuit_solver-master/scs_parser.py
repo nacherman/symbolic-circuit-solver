@@ -153,7 +153,7 @@ def evaluate_params(paramsd, parent=None):
 
     """
     evaluated_paramsd = {}
-    for param, param_str in paramsd.iteritems():
+    for param, param_str in paramsd.items():
         if param not in evaluated_paramsd:
             tmp = evaluate_param(param, paramsd, evaluated_paramsd, parent, [param])
             if tmp:
@@ -177,7 +177,7 @@ def evaluate_passed_params(paramsd, inst, evaluated_paramsd=None):
     if evaluated_paramsd is None:
         evaluated_paramsd = {}
 
-    for param, param_str in paramsd.iteritems():
+    for param, param_str in paramsd.items():
         if param not in evaluated_paramsd:
             tmp = evaluate_expresion(param_str, inst.paramsd)
             if tmp:
@@ -627,10 +627,10 @@ def parse_file(filename, circuit):
         if circuit is current_cir:
             logging.error("No .end statement on the end of file!")
         return current_cir
-    except scs_errors.ScsParserError, e:
+    except scs_errors.ScsParserError as e:
         logging.error("Syntax error in file: %s on line: %d \n %s" % (filename, line_number, e))
         return None
-    except IOError, e:
+    except IOError as e:
         logging.error(e)
         return None
 

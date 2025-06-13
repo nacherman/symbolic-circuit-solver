@@ -76,31 +76,31 @@ def main():
     """ % (__version__, __author__, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
 
     # Create top circtuit by parsing input file
-    time1 = time.clock()
+    time1 = time.perf_counter()
     top_cir = scs_parser.parse_file(input_file_name, scs_circuit.TopCircuit())
     if not top_cir:
         logging.error("Failed to parse a circuit.")
         exit()
-    logging.info('Input file parsed in: %f s' % (time.clock() - time1))
+    logging.info('Input file parsed in: %f s' % (time.perf_counter() - time1))
 
     # Instantiate circuit
-    time1 = time.clock()
+    time1 = time.perf_counter()
     top_instance = scs_instance_hier.make_top_instance(top_cir)
     if not top_instance:
         logging.error("Failed to instanace a circuit.")
         exit()
-    logging.info('Instantiated circuit in: %f s' % (time.clock() - time1))
+    logging.info('Instantiated circuit in: %f s' % (time.perf_counter() - time1))
 
     # Check if circuit is "well-formed"
     if not top_instance.check_path_to_gnd(): exit()
     if not top_instance.check_voltage_loop(): exit()
 
-    time1 = time.clock()
+    time1 = time.perf_counter()
     try:
         top_instance.solve()
     except:
         exit()
-    logging.info('Solved circuit in: %f s' % (time.clock() - time1))
+    logging.info('Solved circuit in: %f s' % (time.perf_counter() - time1))
 
     top_cir.perform_analysis(top_instance, output_file_prefix)
 

@@ -41,20 +41,32 @@ def measure_analysis(param_d, param_l, instance, file_sufix):
     """
     filename = "%s.results" % file_sufix
     subst = []
-    for symbol, value in param_d.iteritems():
-        # tokens = scs_parser.parse_param_expresion(value)
-        # try:
-        #    value =  float(sympy.sympify(scs_parser.params2values(tokens,instance.paramsd)))
-        # except ValueError:
-        #    logging.error("Passed subsitution for %s is not a number, aborting analysis")
-        #    return
-        subst.append((symbol, value))
+    for symbol_name_str, value_str in param_d.items():
+        try:
+            # Attempt to convert to float directly if it's a simple number string
+            # For more complex expressions or parameters, scs_parser.evaluate_expresion might be needed
+            # but .measure typically provides direct numerical substitutions.
+            numeric_value = float(value_str)
+            subst.append((sympy.symbols(symbol_name_str), numeric_value))
+        except ValueError:
+            # If direct float conversion fails, it might be a symbolic expression itself
+            # or needs evaluation via parser if it refers to other params.
+            # For now, assume direct substitution or already evaluated if not float.
+            # This part might need more robust handling if params in .measure can be expressions.
+            # The original code just put the string value. Let's try sympifying it.
+            try:
+                subst.append((sympy.symbols(symbol_name_str), sympy.sympify(value_str, sympy.abc._clash)))
+            except (sympy.SympifyError, TypeError):
+                 raise scs_errors.ScsAnalysisError(f"Passed substitution for {symbol_name_str} ('{value_str}') is not a valid number or expression.")
+        # Original approach (kept for reference, but replaced by above):
+        # subst.append((symbol, value))
+
 
     print_name = param_l[0]
 
     for expresion in param_l[1:]:
         tokens = scs_parser.parse_analysis_expresion(expresion)
-        value = sympy.factor(sympy.sympify(scs_parser.results2values(tokens, instance),sympy.abc._clash), sympy.symbols('s'))
+        value = sympy.factor(sympy.sympify(scs_parser.results2values(tokens, instance),sympy.abc._clash))
         # value =  sympy.sympify(scs_parser.results2values(tokens,instance)).simplify()
         value = value.subs(subst).simplify()
         instance.paramsd.update({print_name: value})
@@ -127,7 +139,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         raise scs_errors.ScsAnalysisError("Bad sweep parameter for .dc analysis: %s" % config['sweep'])
 
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items():
         tokens = scs_parser.parse_param_expresion(value)
         try:
             value = float(sympy.sympify(scs_parser.params2values(tokens, instance.paramsd),sympy.abc._clash))
@@ -169,7 +181,7 @@ def dc_analysis(param_d, param_l, instance, file_sufix):
         try:
             plt.xscale(config['xscale'])
             plt.yscale(config['yscale'])
-        except ValueError, e:
+        except ValueError as e:
             raise scs_errors.ScsAnalysisError(e)
 
         plt.xlabel(r'$%s$' % str(xsym))
@@ -233,7 +245,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
             param_d.pop(config_name)
 
     subst = []
-    for symbol, value in param_d.iteritems():
+    for symbol, value in param_d.items():
         tokens = scs_parser.parse_param_expresion(value)
         try:
             value = float(sympy.sympify(scs_parser.params2values(tokens, instance.paramsd),sympy.abc._clash))
@@ -275,7 +287,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
 
             p = 0
             titled = 1
-            for pole, degree in poles_r.iteritems():
+            for pole, degree in poles_r.items():
                 if pole == 0:
                     titled *= s ** degree
                 else:
@@ -283,7 +295,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
                 p += 1
             z = 0
             titlen = 1
-            for zero, degree in zeros_r.iteritems():
+            for zero, degree in zeros_r.items():
                 if zero == 0:
                     titlen *= s ** degree
                 else:
@@ -317,7 +329,7 @@ def ac_analysis(param_d, param_l, instance, file_sufix):
             try:
                 plt.xscale(config['fscale'])
                 plt.yscale(config['yscale'])
-            except ValueError, e:
+            except ValueError as e:
                 raise scs_errors.ScsAnalysisError(e)
 
             plt.xlabel('f [Hz]')
