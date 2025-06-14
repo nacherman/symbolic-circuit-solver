@@ -1,0 +1,69 @@
+{
+    "components": [
+        {
+            "type": "V",
+            "name": "V1",
+            "value": "5",
+            "source_type": "DC",
+            "ac_magnitude": "0",
+            "ac_phase": "0",
+            "pos_x": -150.0,
+            "pos_y": -50.0,
+            "rotation": 0.0
+        },
+        {
+            "type": "R",
+            "name": "R1",
+            "value": "1k",
+            "pos_x": -50.0,
+            "pos_y": -50.0,
+            "rotation": 0.0
+        },
+        {
+            "type": "R",
+            "name": "R2",
+            "value": "R_load",
+            "pos_x": 50.0,
+            "pos_y": -50.0,
+            "rotation": 0.0
+        },
+        {
+            "type": "GND",
+            "name": "GND1",
+            "value": "",
+            "pos_x": 50.0,
+            "pos_y": 50.0,
+            "rotation": 0.0
+        }
+    ],
+    "wires": [
+        {
+            "type": "Wire",
+            "start_comp_name": "V1",
+            "start_term_id": 0,
+            "end_comp_name": "R1",
+            "end_term_id": 0
+        },
+        {
+            "type": "Wire",
+            "start_comp_name": "R1",
+            "start_term_id": 1,
+            "end_comp_name": "R2",
+            "end_term_id": 0
+        },
+        {
+            "type": "Wire",
+            "start_comp_name": "R2",
+            "start_term_id": 1,
+            "end_comp_name": "GND1",
+            "end_term_id": 0
+        },
+        {
+            "type": "Wire",
+            "start_comp_name": "V1",
+            "start_term_id": 1,
+            "end_comp_name": "GND1",
+            "end_term_id": 0
+        }
+    ]
+}

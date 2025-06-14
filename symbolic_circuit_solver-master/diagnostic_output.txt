@@ -1,0 +1,56 @@
+Starting diagnostic run... Headless test: True
+Instantiating HeadlessSimulator...
+HeadlessSimulator instantiated.
+Looking for test circuit at: /app/symbolic_circuit_solver-master/test_circuits/voltage_divider_symbolic.json
+Headless: Attempting to auto-load test circuit: /app/symbolic_circuit_solver-master/test_circuits/voltage_divider_symbolic.json
+Headless: Test circuit loaded, attempting to run simulation...
+Headless: Simulation run completed (placeholder).
+
+--- Headless Solver Log ---
+Headless loaded 4 components and 4 wires.
+--- Headless Simulation Placeholder ---
+SPICE Netlist (Headless):
+* Auto-generated SPICE netlist from HeadlessSimulator
+V1 n1 0 5
+R1 n1 n2 1k
+R2 n2 0 R_load
+.measure dc gui_v_0 v(0)
+.measure dc gui_v_n1 v(n1)
+.measure dc gui_v_n2 v(n2)
+--------------------
+Executing command: python /app/symbolic_circuit_solver-master/scs.py -i /tmp/headless_gui_sim_k19rty45.sp -o /tmp/headless_gui_sim_k19rty45
+Working Directory: /app/symbolic_circuit_solver-master
+Solver Standard Output:
+N/A
+Solver Standard Error:
+N/A
+Simulation completed successfully (scs.py return code 0).
+ERROR: Results file '/tmp/headless_gui_sim_k19rty45.results' not found despite scs.py success.
+
+
+--- Headless Solution Path & Analysis ---
+HeadlessSimulator.run_simulation() called.
+DSU, SPICE gen, scs.py call, and SymPy analysis would happen here.
+R R_placeholder (R_load): V_drop = 5*R_load/(1000+R_load), I_current = 5/(1000+R_load)
+DSU and Node Naming Complete (Headless).
+Node Representative to Name Map: {'(V1_obj_at_0x7efd87a0e320, t1)': '0', '(V1_obj_at_0x7efd87a0e320, t0)': 'n1', '(R1_obj_at_0x7efd87a0e350, t1)': 'n2'}
+Final Node Names for All Comps: {'V1_t0': 'n1', 'V1_t1': '0', 'R1_t0': 'n1', 'R1_t1': 'n2', 'R2_t0': 'n2', 'R2_t1': '0', 'GND1_t0': '0'}
+
+Generated SPICE Netlist (Headless):
+* Auto-generated SPICE netlist from HeadlessSimulator
+V1 n1 0 5
+R1 n1 n2 1k
+R2 n2 0 R_load
+.measure dc gui_v_0 v(0)
+.measure dc gui_v_n1 v(n1)
+.measure dc gui_v_n2 v(n2)
+--- End of Headless Simulation (scs.py execution part done) ---
+
+
+--- Headless Parsed Measure Results ---
+{
+  "v(n_placeholder)": "R_load * Isymbolic"
+}
+
+--- End of Headless Auto-Run Output ---
+Headless diagnostic logging complete.
