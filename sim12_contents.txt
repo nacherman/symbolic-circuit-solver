@@ -1,0 +1,842 @@
+Archive:  sim12.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  2025-06-14 15:35   sim12/
+        0  2025-06-14 15:35   sim12/sim/
+    10403  2025-06-14 15:35   sim12/sim/README.md
+       60  2025-06-14 15:35   sim12/sim/__init__.py
+    77949  2025-06-14 15:35   sim12/sim/circuit_gui.py
+      621  2025-06-14 15:35   sim12/sim/nc_ctle.sp
+      245  2025-06-14 15:35   sim12/sim/inv_amp.sp
+      244  2025-06-14 15:35   sim12/sim/non_inv_amp.sp
+      349  2025-06-14 15:35   sim12/sim/activefilter.sp
+      349  2025-06-14 15:35   sim12/sim/current_mirror.sp
+      594  2025-06-14 15:35   sim12/sim/cascode_current_source.sp
+      364  2025-06-14 15:35   sim12/sim/common_source.sp
+      360  2025-06-14 15:35   sim12/sim/common_drain.sp
+      386  2025-06-14 15:35   sim12/sim/active_load.sp
+      477  2025-06-14 15:35   sim12/sim/diff_pair.sp
+      504  2025-06-14 15:35   sim12/sim/opamp.sp
+      376  2025-06-14 15:35   sim12/sim/ctle.sp
+      421  2025-06-14 15:35   sim12/sim/negc.sp
+     4902  2025-06-14 15:35   sim12/sim/derive_divider_formulas.py
+     4524  2025-06-14 15:35   sim12/sim/solve_underdetermined_divider.py
+      385  2025-06-14 15:35   sim12/sim/voltage_divider.sp
+       38  2025-06-14 15:35   sim12/sim/__init__ (1).py
+      589  2025-06-14 15:35   sim12/sim/h_bridge.sp
+    10302  2025-06-14 15:35   sim12/sim/solve_h_bridge_problem.py
+      266  2025-06-14 15:35   sim12/sim/power_test.sp
+     4661  2025-06-14 15:35   sim12/sim/solve_power_test.py
+       38  2025-06-14 15:35   sim12/sim/__init__ (2).py
+      401  2025-06-14 15:35   sim12/sim/mos.sp
+      318  2025-06-14 15:35   sim12/sim/opamp (1).sp
+     3618  2025-06-14 15:35   sim12/sim/scs.py
+    15933  2025-06-14 15:35   sim12/sim/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/scs_circuit.py
+    12599  2025-06-14 15:35   sim12/sim/scs_elements.py
+      970  2025-06-14 15:35   sim12/sim/scs_errors.py
+    43609  2025-06-14 15:35   sim12/sim/scs_instance_hier.py
+    25715  2025-06-14 15:35   sim12/sim/scs_parser.py
+    10520  2025-06-14 15:35   sim12/sim/scs_symbolic_solver_tool.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/test_include.sp
+    10209  2025-06-14 15:35   sim12/sim/all_symbolic_components.cpython-310.pyc
+     9232  2025-06-14 15:35   sim12/sim/symbolic_solver.cpython-310.pyc
+     6056  2025-06-14 15:35   sim12/sim/utils.cpython-310.pyc
+     3030  2025-06-14 15:35   sim12/sim/README.txt
+     5883  2025-06-14 15:35   sim12/sim/TODO.txt
+    10230  2025-06-14 15:35   sim12/sim/all_symbolic_components.cpython-310 (1).pyc
+    11462  2025-06-14 15:35   sim12/sim/symbolic_solver.cpython-310 (1).pyc
+     6077  2025-06-14 15:35   sim12/sim/utils.cpython-310 (1).pyc
+    12732  2025-06-14 15:35   sim12/sim/all_symbolic_components.py
+    15028  2025-06-14 15:35   sim12/sim/spice_parser.py
+     1426  2025-06-14 15:35   sim12/sim/README (1).md
+      617  2025-06-14 15:35   sim12/sim/nc_ctle (1).sp
+      240  2025-06-14 15:35   sim12/sim/inv_amp (1).sp
+      242  2025-06-14 15:35   sim12/sim/non_inv_amp (1).sp
+      346  2025-06-14 15:35   sim12/sim/activefilter (1).sp
+      347  2025-06-14 15:35   sim12/sim/current_mirror (1).sp
+      592  2025-06-14 15:35   sim12/sim/cascode_current_source (1).sp
+      361  2025-06-14 15:35   sim12/sim/common_source (1).sp
+      356  2025-06-14 15:35   sim12/sim/common_drain (1).sp
+      381  2025-06-14 15:35   sim12/sim/active_load (1).sp
+      471  2025-06-14 15:35   sim12/sim/diff_pair (1).sp
+      502  2025-06-14 15:35   sim12/sim/opamp (2).sp
+      373  2025-06-14 15:35   sim12/sim/ctle (1).sp
+      418  2025-06-14 15:35   sim12/sim/negc (1).sp
+      400  2025-06-14 15:35   sim12/sim/mos (1).sp
+      313  2025-06-14 15:35   sim12/sim/opamp (3).sp
+     4515  2025-06-14 15:35   sim12/sim/scs (1).py
+    16156  2025-06-14 15:35   sim12/sim/scs_analysis (1).py
+     6186  2025-06-14 15:35   sim12/sim/scs_circuit (1).py
+    12444  2025-06-14 15:35   sim12/sim/scs_elements (1).py
+      852  2025-06-14 15:35   sim12/sim/scs_errors (1).py
+    33727  2025-06-14 15:35   sim12/sim/scs_instance_hier (1).py
+    34961  2025-06-14 15:35   sim12/sim/scs_parser (1).py
+     1245  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (1).py
+     6466  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (1).pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (1).sln
+     1310  2025-06-14 15:35   sim12/sim/test_ac_simple.sp
+     1068  2025-06-14 15:35   sim12/sim/test_comprehensive.sp
+      268  2025-06-14 15:35   sim12/sim/test_dc_simple.sp
+      113  2025-06-14 15:35   sim12/sim/test_include (1).sp
+      566  2025-06-14 15:35   sim12/sim/test_rlcvi.sp
+    18414  2025-06-14 15:35   sim12/sim/symbolic_solver.py
+    16457  2025-06-14 15:35   sim12/sim/symbolic_tester.py
+     9656  2025-06-14 15:35   sim12/sim/utils.py
+     1428  2025-06-14 15:35   sim12/sim/README (2).md
+      621  2025-06-14 15:35   sim12/sim/nc_ctle (2).sp
+      245  2025-06-14 15:35   sim12/sim/inv_amp (2).sp
+      244  2025-06-14 15:35   sim12/sim/non_inv_amp (2).sp
+      349  2025-06-14 15:35   sim12/sim/activefilter (2).sp
+      349  2025-06-14 15:35   sim12/sim/current_mirror (2).sp
+      594  2025-06-14 15:35   sim12/sim/cascode_current_source (2).sp
+      364  2025-06-14 15:35   sim12/sim/common_source (2).sp
+      360  2025-06-14 15:35   sim12/sim/common_drain (2).sp
+      386  2025-06-14 15:35   sim12/sim/active_load (2).sp
+      477  2025-06-14 15:35   sim12/sim/diff_pair (2).sp
+      504  2025-06-14 15:35   sim12/sim/opamp (4).sp
+      376  2025-06-14 15:35   sim12/sim/ctle (2).sp
+      421  2025-06-14 15:35   sim12/sim/negc (2).sp
+      401  2025-06-14 15:35   sim12/sim/mos (2).sp
+      318  2025-06-14 15:35   sim12/sim/opamp (5).sp
+     4515  2025-06-14 15:35   sim12/sim/scs (2).py
+    16957  2025-06-14 15:35   sim12/sim/scs_analysis (2).py
+     6257  2025-06-14 15:35   sim12/sim/scs_circuit (2).py
+    12585  2025-06-14 15:35   sim12/sim/scs_elements (2).py
+      853  2025-06-14 15:35   sim12/sim/scs_errors (2).py
+    29325  2025-06-14 15:35   sim12/sim/scs_instance_hier (2).py
+    34962  2025-06-14 15:35   sim12/sim/scs_parser (2).py
+     1246  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (2).py
+     6466  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (2).pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (2).sln
+      812  2025-06-14 15:35   sim12/sim/test_ac_simple (1).sp
+     1068  2025-06-14 15:35   sim12/sim/test_comprehensive (1).sp
+      491  2025-06-14 15:35   sim12/sim/test_dc_simple (1).sp
+      114  2025-06-14 15:35   sim12/sim/test_include (2).sp
+      566  2025-06-14 15:35   sim12/sim/test_rlcvi (1).sp
+    72155  2025-06-14 15:35   sim12/sim/ELABorate.mltbx
+     4512  2025-06-14 15:35   sim12/sim/ELABorate.prj
+      476  2025-06-14 15:35   sim12/sim/ELAB.m
+      253  2025-06-14 15:35   sim12/sim/Amplifier.m
+     1374  2025-06-14 15:35   sim12/sim/Ideal_OpAmp.m
+      242  2025-06-14 15:35   sim12/sim/Dep_S.m
+      968  2025-06-14 15:35   sim12/sim/Dep_CC.m
+      955  2025-06-14 15:35   sim12/sim/CCCS.m
+      930  2025-06-14 15:35   sim12/sim/CCVS.m
+     1240  2025-06-14 15:35   sim12/sim/Dep_VC.m
+      997  2025-06-14 15:35   sim12/sim/VCCS.m
+      997  2025-06-14 15:35   sim12/sim/VCVS.m
+     1172  2025-06-14 15:35   sim12/sim/Capacitor.m
+     1141  2025-06-14 15:35   sim12/sim/Resistor.m
+     1247  2025-06-14 15:35   sim12/sim/Indep_VS.m
+      604  2025-06-14 15:35   sim12/sim/Transistor.m
+     1550  2025-06-14 15:35   sim12/sim/MOSFET.m
+    12390  2025-06-14 15:35   sim12/sim/Transmuter.m
+      187  2025-06-14 15:35   sim12/sim/EE.m
+      454  2025-06-14 15:35   sim12/sim/Physics.m
+     1725  2025-06-14 15:35   sim12/sim/SI.m
+     1790  2025-06-14 15:35   sim12/sim/Signals.m
+      337  2025-06-14 15:35   sim12/sim/ODE.m
+  2242874  2025-06-14 15:35   sim12/sim/ELABorate_presentation.pdf
+       64  2025-06-14 15:35   sim12/sim/ac_source.txt
+       88  2025-06-14 15:35   sim12/sim/bjt_cs_amp_num.txt
+       78  2025-06-14 15:35   sim12/sim/bjt_cs_amp_num_dc.txt
+      182  2025-06-14 15:35   sim12/sim/complex.txt
+       74  2025-06-14 15:35   sim12/sim/eq_impedance.txt
+       86  2025-06-14 15:35   sim12/sim/G_src.txt
+       51  2025-06-14 15:35   sim12/sim/n_series.txt
+       64  2025-06-14 15:35   sim12/sim/quad_series.txt
+       46  2025-06-14 15:35   sim12/sim/rc_low_pass.txt
+       76  2025-06-14 15:35   sim12/sim/rc_mix.txt
+       58  2025-06-14 15:35   sim12/sim/rc_op_amp.txt
+       67  2025-06-14 15:35   sim12/sim/rlc_mix.txt
+       50  2025-06-14 15:35   sim12/sim/rlc_parallel.txt
+       37  2025-06-14 15:35   sim12/sim/rl_low_pass.txt
+       32  2025-06-14 15:35   sim12/sim/r_op_amp.txt
+       97  2025-06-14 15:35   sim12/sim/series_parallel.txt
+      154  2025-06-14 15:35   sim12/sim/ssm_bjt_complex_amp.txt
+      141  2025-06-14 15:35   sim12/sim/state_variable_filter.txt
+       51  2025-06-14 15:35   sim12/sim/triple_parallel.txt
+       40  2025-06-14 15:35   sim12/sim/voltage_divider.txt
+   272374  2025-06-14 15:35   sim12/sim/dependent_sources.pdf
+   246358  2025-06-14 15:35   sim12/sim/introduction.pdf
+   292611  2025-06-14 15:35   sim12/sim/operational_amplifiers.pdf
+   202855  2025-06-14 15:35   sim12/sim/rlc_circuits.pdf
+   151912  2025-06-14 15:35   sim12/sim/rl_circuits.pdf
+   107975  2025-06-14 15:35   sim12/sim/time_domain_analysis.pdf
+   431915  2025-06-14 15:35   sim12/sim/transistor_circuits.pdf
+    99921  2025-06-14 15:35   sim12/sim/voltage_divider.pdf
+   121852  2025-06-14 15:35   sim12/sim/shorting_and_opening.pdf
+   142759  2025-06-14 15:35   sim12/sim/thevenin_norton_equivalents.pdf
+    39055  2025-06-14 15:35   sim12/sim/controllers.pdf
+   126807  2025-06-14 15:35   sim12/sim/responses.pdf
+   117549  2025-06-14 15:35   sim12/sim/root_locus.pdf
+    62515  2025-06-14 15:35   sim12/sim/static_error_constants.pdf
+   162129  2025-06-14 15:35   sim12/sim/transmuting_systems.pdf
+    81801  2025-06-14 15:35   sim12/sim/dependent_sources.mlx
+    25015  2025-06-14 15:35   sim12/sim/introduction.mlx
+   201468  2025-06-14 15:35   sim12/sim/operational_amplifiers.mlx
+    67134  2025-06-14 15:35   sim12/sim/rlc_circuits.mlx
+    22914  2025-06-14 15:35   sim12/sim/shorting_and_opening.mlx
+   132607  2025-06-14 15:35   sim12/sim/thevenin_norton_equivalents.mlx
+   121309  2025-06-14 15:35   sim12/sim/responses.mlx
+     4742  2025-06-14 15:35   sim12/sim/routh_array.mlx
+    69802  2025-06-14 15:35   sim12/sim/transmuting_systems.mlx
+   155019  2025-06-14 15:35   sim12/sim/ELABorate_component_modelling.png
+   271220  2025-06-14 15:35   sim12/sim/ELABorate_transmuting.png
+    35149  2025-06-14 15:35   sim12/sim/LICENSE
+     3556  2025-06-14 15:35   sim12/sim/readme (3).md
+      244  2025-06-14 15:35   sim12/sim/non_inv_amp (3).sp
+      349  2025-06-14 15:35   sim12/sim/activefilter (3).sp
+      349  2025-06-14 15:35   sim12/sim/current_mirror (3).sp
+      594  2025-06-14 15:35   sim12/sim/cascode_current_source (3).sp
+      364  2025-06-14 15:35   sim12/sim/common_source (3).sp
+      386  2025-06-14 15:35   sim12/sim/active_load (3).sp
+      477  2025-06-14 15:35   sim12/sim/diff_pair (3).sp
+      376  2025-06-14 15:35   sim12/sim/ctle (3).sp
+      421  2025-06-14 15:35   sim12/sim/negc (3).sp
+     1428  2025-06-14 15:35   sim12/sim/README (4).md
+    10745  2025-06-14 15:35   sim12/sim/scam.m
+     3618  2025-06-14 15:35   sim12/sim/scs (3).py
+     5288  2025-06-14 15:35   sim12/sim/scs_circuit (3).py
+    25334  2025-06-14 15:35   sim12/sim/scs_parser (3).py
+     1025  2025-06-14 15:35   sim12/sim/CMOS.CIR
+       33  2025-06-14 15:35   sim12/sim/IN.TXT
+      136  2025-06-14 15:35   sim12/sim/RLC.CIR
+      232  2025-06-14 15:35   sim12/sim/SVAF.CIR
+      163  2025-06-14 15:35   sim12/sim/SYS.MTX
+     6466  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (3).pyproj
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitignore
+    10403  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/README.md
+       60  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/__init__.py
+    77949  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/circuit_gui.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/
+     4902  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/derive_divider_formulas.py
+     4524  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/solve_underdetermined_divider.py
+      385  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/voltage_divider.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/__init__.py
+      589  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/h_bridge.sp
+    10302  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/solve_h_bridge_problem.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/
+      266  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/power_test.sp
+     4661  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/solve_power_test.py
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/__init__.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/opamp.sp
+     3618  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs.py
+    15933  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_circuit.py
+    12599  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_elements.py
+      970  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_errors.py
+    43609  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_instance_hier.py
+    25715  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_parser.py
+    10520  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_symbolic_solver_tool.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancemen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/branch/
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/
+     2518  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitignore
+    10403  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/README.md
+       60  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/__init__.py
+    77949  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/circuit_gui.py
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/
+     4902  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/derive_divider_formulas.py
+     4524  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/solve_underdetermined_divider.py
+      385  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/voltage_divider.sp
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/
+       38  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/__init__.py
+      589  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/h_bridge.sp
+    10302  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/solve_h_bridge_problem.py
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/
+      266  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/power_test.sp
+     4661  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/solve_power_test.py
+       38  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/__init__.py
+        0  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/opamp.sp
+     3618  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs.py
+    15933  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_circuit.py
+    12599  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_elements.py
+      970  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_errors.py
+    43609  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_instance_hier.py
+    25715  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_parser.py
+    10520  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_symbolic_solver_tool.py
+     1246  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/branch/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/.gitignore
+     1428  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/README.md
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/bridge_circuit.sp
+     2206  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/diagnostic_output.txt
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/examples/library/opamp.sp
+    58706  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/main_gui.py
+     3660  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs.py
+    16776  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_circuit.py
+    12585  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_elements.py
+      853  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_errors.py
+    41784  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_instance_hier.py
+    25330  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/scs_parser.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/symbolic_circuit_solver.sln
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/test_circuits/
+     1612  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/test_circuits/voltage_divider_symbolic.json
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-fix-py3-bridge-example/symbolic-circuit-solver-fix-py3-bridge-example/symbolic_circuit_solver-master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/.gitignore
+    10403  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/README.md
+       60  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/__init__.py
+    77949  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/circuit_gui.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/
+     4902  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/derive_divider_formulas.py
+     4524  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/solve_underdetermined_divider.py
+      385  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Formula_Derivation/voltage_divider.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/__init__.py
+      589  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/h_bridge.sp
+    10302  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/H_Bridge/solve_h_bridge_problem.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/
+      266  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/power_test.sp
+     4661  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/Power_Condition_Test/solve_power_test.py
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/__init__.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/examples/library/opamp.sp
+     3618  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs.py
+    15933  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_circuit.py
+    12599  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_elements.py
+      970  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_errors.py
+    43609  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_instance_hier.py
+    25715  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_parser.py
+    10520  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/scs_symbolic_solver_tool.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-solver-enhancmen/symbolic-circuit-solver-symbolic-solver-enhancements/symbolic_circuit_solver_master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/
+     3030  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/README.txt
+     5883  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/TODO.txt
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/__pycache__/
+    10209  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/__pycache__/all_symbolic_components.cpython-310.pyc
+     9232  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/__pycache__/symbolic_solver.cpython-310.pyc
+     6056  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/__pycache__/utils.cpython-310.pyc
+    12732  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/all_symbolic_components.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/
+     3030  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/README.txt
+     5883  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/TODO.txt
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/__pycache__/
+    10230  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/__pycache__/all_symbolic_components.cpython-310.pyc
+    11462  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/__pycache__/symbolic_solver.cpython-310.pyc
+     6077  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/__pycache__/utils.cpython-310.pyc
+    12732  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/all_symbolic_components.py
+    15028  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/spice_parser.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/
+     2515  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/.gitattributes
+     3867  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/.gitignore
+     1426  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/README.md
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/10_NC_CTLE/
+      617  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/11_Inverting_Amp/
+      240  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/
+      242  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/
+      346  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/1_Current_mirror/
+      347  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/2_Cascode_current_source/
+      592  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/3_Common_source/
+      361  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/4_Common_drain/
+      356  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/5_Active_load/
+      381  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/6_Diff_pair/
+      471  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/7_Opamp/
+      502  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/8_CTLE/
+      373  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/9_Negative_C/
+      418  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/library/
+      400  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/library/mos.sp
+      313  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/examples/library/opamp.sp
+     4515  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs.py
+    16156  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_analysis.py
+     6186  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_circuit.py
+    12444  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_elements.py
+      852  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_errors.py
+    33727  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_instance_hier.py
+    34961  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/scs_parser.py
+     1245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/symbolic_circuit_solver.sln
+     1310  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/test_ac_simple.sp
+     1068  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/test_comprehensive.sp
+      268  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/test_dc_simple.sp
+      113  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/test_include.sp
+      566  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_circuit_solver-master/test_rlcvi.sp
+    18414  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_solver.py
+    16457  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/symbolic_tester.py
+     9656  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/solver_dev_workspace/utils.py
+    15028  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/spice_parser.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/.gitignore
+     1428  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/README.md
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/examples/library/opamp.sp
+     4515  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs.py
+    16957  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_analysis.py
+     6257  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_circuit.py
+    12585  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_elements.py
+      853  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_errors.py
+    29325  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_instance_hier.py
+    34962  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/scs_parser.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/symbolic_circuit_solver.sln
+      812  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/test_ac_simple.sp
+     1068  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/test_comprehensive.sp
+      491  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/test_dc_simple.sp
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/test_include.sp
+      566  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_circuit_solver-master/test_rlcvi.sp
+    14708  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_solver.py
+    30897  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/symbolic_tester.py
+      617  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_R.log
+       43  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_R.sp
+      851  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_ac_simple_out.results
+    12194  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_ac_simple_out_ac_0.png
+     1150  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_all_linear.log
+      844  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_all_linear.sp
+     1116  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/test_dc_simple_out.results
+     9656  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-symbolic-circuit-solver/symbolic-circuit-solver-symbolic-circuit-solver/utils.py
+     1243  2025-06-14 15:35   sim12/sim/Element.m
+     1566  2025-06-14 15:35   sim12/sim/Impedance.m
+     1160  2025-06-14 15:35   sim12/sim/Inductor.m
+     1275  2025-06-14 15:35   sim12/sim/Indep_S.m
+     1246  2025-06-14 15:35   sim12/sim/Indep_IS.m
+     1642  2025-06-14 15:35   sim12/sim/BJT.m
+    25079  2025-06-14 15:35   sim12/sim/Analyzer.m
+    21740  2025-06-14 15:35   sim12/sim/Modeller.m
+     3489  2025-06-14 15:35   sim12/sim/Visualizer.m
+      550  2025-06-14 15:35   sim12/sim/Atom.m
+      255  2025-06-14 15:35   sim12/sim/Math.m
+      877  2025-06-14 15:35   sim12/sim/PT.m
+      529  2025-06-14 15:35   sim12/sim/Base_System.m
+    20141  2025-06-14 15:35   sim12/sim/Circuit.m
+      101  2025-06-14 15:35   sim12/sim/bjt_complex_amp.txt
+       67  2025-06-14 15:35   sim12/sim/bjt_cs_amp.txt
+       92  2025-06-14 15:35   sim12/sim/E_src.txt
+       91  2025-06-14 15:35   sim12/sim/F_src.txt
+       80  2025-06-14 15:35   sim12/sim/H_src.txt
+       65  2025-06-14 15:35   sim12/sim/mos_cs_amp.txt
+       57  2025-06-14 15:35   sim12/sim/multiple_eqs.txt
+       66  2025-06-14 15:35   sim12/sim/multiple_srcs_1.txt
+       71  2025-06-14 15:35   sim12/sim/multiple_srcs_2.txt
+       63  2025-06-14 15:35   sim12/sim/nodal_gap.txt
+       44  2025-06-14 15:35   sim12/sim/open_short.txt
+       44  2025-06-14 15:35   sim12/sim/rc_high_pass.txt
+       74  2025-06-14 15:35   sim12/sim/rc_op_amp_num.txt
+       73  2025-06-14 15:35   sim12/sim/rlc_arbitrary.txt
+       51  2025-06-14 15:35   sim12/sim/rlc_series.txt
+       35  2025-06-14 15:35   sim12/sim/rl_high_pass.txt
+       41  2025-06-14 15:35   sim12/sim/ssm_mos_cs_r_load.txt
+       55  2025-06-14 15:35   sim12/sim/th_no_equivalents.txt
+       44  2025-06-14 15:35   sim12/sim/th_no_equivalents_sym.txt
+   219509  2025-06-14 15:35   sim12/sim/rc_circuits.pdf
+    75322  2025-06-14 15:35   sim12/sim/adding_elements.pdf
+    65048  2025-06-14 15:35   sim12/sim/cleaning_and_trimming.pdf
+    72008  2025-06-14 15:35   sim12/sim/cloning_and_exporting.pdf
+   146497  2025-06-14 15:35   sim12/sim/simplifying.pdf
+    98165  2025-06-14 15:35   sim12/sim/routh_array.pdf
+   105944  2025-06-14 15:35   sim12/sim/rc_circuits.mlx
+    67587  2025-06-14 15:35   sim12/sim/rl_circuits.mlx
+    34500  2025-06-14 15:35   sim12/sim/time_domain_analysis.mlx
+   242341  2025-06-14 15:35   sim12/sim/transistor_circuits.mlx
+    22352  2025-06-14 15:35   sim12/sim/voltage_divider.mlx
+     5350  2025-06-14 15:35   sim12/sim/adding_elements.mlx
+     3796  2025-06-14 15:35   sim12/sim/cleaning_and_trimming.mlx
+     4113  2025-06-14 15:35   sim12/sim/cloning_and_exporting.mlx
+    52757  2025-06-14 15:35   sim12/sim/simplifying.mlx
+     3758  2025-06-14 15:35   sim12/sim/controllers.mlx
+    17991  2025-06-14 15:35   sim12/sim/root_locus.mlx
+     3717  2025-06-14 15:35   sim12/sim/static_error_constants.mlx
+    77852  2025-06-14 15:35   sim12/sim/ELABorate_basic_use.png
+   184423  2025-06-14 15:35   sim12/sim/ELABorate_circuit_analysis.png
+   197631  2025-06-14 15:35   sim12/sim/ELABorate_circuit_simplification.png
+   316263  2025-06-14 15:35   sim12/sim/ELABorate_key_idea.png
+  1989698  2025-06-14 15:35   sim12/sim/programmatic_symbolic_circuit_analysis.pdf
+     5278  2025-06-14 15:35   sim12/sim/logo.png
+     5278  2025-06-14 15:35   sim12/sim/logo (1).png
+    23621  2025-06-14 15:35   sim12/sim/ss_error_table.png
+      621  2025-06-14 15:35   sim12/sim/nc_ctle (3).sp
+      245  2025-06-14 15:35   sim12/sim/inv_amp (3).sp
+      360  2025-06-14 15:35   sim12/sim/common_drain (3).sp
+      504  2025-06-14 15:35   sim12/sim/opamp (6).sp
+      401  2025-06-14 15:35   sim12/sim/mos (3).sp
+      318  2025-06-14 15:35   sim12/sim/opamp (7).sp
+     1312  2025-06-14 15:35   sim12/sim/license.txt
+    15851  2025-06-14 15:35   sim12/sim/scs_analysis (3).py
+    12585  2025-06-14 15:35   sim12/sim/scs_elements (3).py
+      853  2025-06-14 15:35   sim12/sim/scs_errors (3).py
+    41821  2025-06-14 15:35   sim12/sim/scs_instance_hier (3).py
+    18316  2025-06-14 15:35   sim12/sim/ELEMENTS.TXT
+      762  2025-06-14 15:35   sim12/sim/README (1).TXT
+      232  2025-06-14 15:35   sim12/sim/SVAFNOA.CIR
+   458841  2025-06-14 15:35   sim12/sim/SymbolicSPICE.exe
+     1246  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (3).py
+      828  2025-06-14 15:35   sim12/sim/symbolic_circuit_solver (3).sln
+      114  2025-06-14 15:35   sim12/sim/test_include (3).sp
+     1591  2025-06-14 15:35   sim12/sim/scs_errors.cpython-312.pyc
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/.gitignore
+     1428  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/README.md
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/examples/library/opamp.sp
+     3618  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs.py
+    15851  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_analysis.py
+     5288  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_circuit.py
+    12585  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_elements.py
+      853  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_errors.py
+    41821  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_instance_hier.py
+    25334  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/scs_parser.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-main/symbolic-circuit-solver-main/symbolic_circuit_solver-master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/.gitignore
+     1428  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/README.md
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/9_Negative_C/negc.sp
+      596  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/circuit_analysis.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/examples/library/opamp.sp
+     3660  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs.py
+    16270  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_analysis.py
+     5304  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_circuit.py
+    12585  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_elements.py
+      853  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_errors.py
+    42486  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_instance_hier.py
+    25934  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/scs_parser.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic-circuit-solver-dc-circuit-analysis-fix/symbolic_circuit_solver-master/test_include.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/
+     7647  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/README.md
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/
+       57  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/__init__.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/__pycache__/
+      140  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/__pycache__/__init__.cpython-310.pyc
+     3963  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/__pycache__/h_bridge_analysis.cpython-310.pyc
+     8078  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/Symbolic_Goal_Seeking/h_bridge_analysis.py
+       40  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/__init__.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/__pycache__/
+      118  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/examples/__pycache__/__init__.cpython-310.pyc
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/
+     2518  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/.gitattributes
+     3868  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/.gitignore
+    38813  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/README.md
+       60  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/__init__.py
+    77949  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/circuit_gui.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/10_NC_CTLE/
+      621  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/10_NC_CTLE/nc_ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/11_Inverting_Amp/
+      245  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/11_Inverting_Amp/inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/
+      244  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/12_Non_Inverting_Amp/non_inv_amp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/13_High_Pass_Active_Filter/activefilter.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/1_Current_mirror/
+      349  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/1_Current_mirror/current_mirror.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/2_Cascode_current_source/
+      594  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/2_Cascode_current_source/cascode_current_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/3_Common_source/
+      364  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/3_Common_source/common_source.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/4_Common_drain/
+      360  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/4_Common_drain/common_drain.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/5_Active_load/
+      386  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/5_Active_load/active_load.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/6_Diff_pair/
+      477  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/6_Diff_pair/diff_pair.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/7_Opamp/
+      504  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/7_Opamp/opamp.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/8_CTLE/
+      376  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/8_CTLE/ctle.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/9_Negative_C/
+      421  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/9_Negative_C/negc.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Derivation/
+     4902  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Derivation/derive_divider_formulas.py
+     4524  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Derivation/solve_underdetermined_divider.py
+      385  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Derivation/voltage_divider.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Verification/
+     2983  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Verification/example_opamp_suite.yaml
+     5363  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Verification/verify_voltage_divider.py
+     7061  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Formula_Verification/verify_voltage_divider_auto_points.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/H_Bridge/
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/H_Bridge/__init__.py
+      589  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/H_Bridge/h_bridge.sp
+    12675  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/H_Bridge/solve_h_bridge_problem.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Power_Condition_Test/
+      266  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Power_Condition_Test/power_test.sp
+     4661  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Power_Condition_Test/solve_power_test.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Symbolic_Goal_Seeking/
+     8155  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Symbolic_Goal_Seeking/h_bridge_analysis.py
+     9368  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/Symbolic_Goal_Seeking/voltage_divider_goal_seek.py
+       38  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/__init__.py
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/example_circuits/
+      368  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/example_circuits/opamp_circuit.sp
+        0  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/library/
+      401  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/library/mos.sp
+      318  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/examples/library/opamp.sp
+     3618  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs.py
+    15933  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_analysis.py
+     5512  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_circuit.py
+    17665  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_elements.py
+      970  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_errors.py
+    45567  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_instance_hier.py
+    17100  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_ngspice_interface.py
+    55697  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_numerical_solver.py
+    26306  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_parser.py
+    32134  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_symbolic_goal_seeker.py
+    10520  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_symbolic_solver_tool.py
+    35083  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_utils.py
+    46775  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/scs_verification.py
+     1246  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/symbolic_circuit_solver.py
+     6466  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/symbolic_circuit_solver.pyproj
+      828  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/symbolic_circuit_solver.sln
+      114  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/symbolic_circuit_solver_master/test_include.sp
+      706  2025-06-14 15:35   sim12/sim/symbolic-circuit-solver-improve-h-bridge-example/symbolic-circuit-solver-improve-h-bridge-example/test_imports.py
+---------                     -------
+ 13745543                     837 files

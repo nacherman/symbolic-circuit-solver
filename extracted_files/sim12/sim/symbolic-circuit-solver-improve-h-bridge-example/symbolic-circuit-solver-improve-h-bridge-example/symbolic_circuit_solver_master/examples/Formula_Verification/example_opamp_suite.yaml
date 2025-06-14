@@ -1,0 +1,95 @@
+suite_name: Op-Amp Example Verification Suite
+netlist_path: ../example_circuits/opamp_circuit.sp
+tasks:
+  - task_name: V_N_out (OpAmp)
+    type: node_voltage
+    target: N_out
+    num_sets: 1 # Reduced for mock test, using specific overrides
+    numerical_engine: ngspice
+    user_param_override_values: # Added to match SAMPLE_COMPLEX_OPAMP_NGSPICE_STDOUT parameters
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+  - task_name: P_R2 (OpAmp) NGSpice Mock
+    type: element_power
+    target: R2
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+      # R2_val is 10k from netlist, not overridden here for this specific test point
+  - task_name: P_Vin (OpAmp) NGSpice Mock
+    type: element_power # Power in an independent voltage source
+    target: Vin
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+  - task_name: P_E_opamp (OpAmp) NGSpice Mock
+    type: element_power # Power in a VCVS
+    target: E_opamp
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+      # R2_val is fixed at 10k in netlist, not overridden here for this test point
+    # symbol_specific_random_ranges: # Not needed when using fixed overrides for a single test point
+    #   R1_sym: [600.0, 1200.0]
+    #   Aol_sym: [15000.0, 45000.0]
+  - task_name: V_N_minus (OpAmp) NGSpice Mock
+    type: node_voltage
+    target: N_minus
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+  - task_name: I_Vin (OpAmp) NGSpice Mock
+    type: vsource_current
+    target: Vin
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+  - task_name: I_E_opamp (OpAmp) NGSpice Mock
+    type: vsource_current # Current through a VCVS (E element)
+    target: E_opamp
+    num_sets: 1
+    numerical_engine: ngspice
+    user_param_override_values:
+      V_source_sym: 1.0
+      R1_sym: 1000.0
+      Aol_sym: 100000.0
+  - task_name: I_R1 (OpAmp) # This will use internal solver
+    type: element_current
+    target: R1
+    num_sets: 3
+  - task_name: I_Vin (OpAmp)
+    type: vsource_current
+    target: Vin
+    num_sets: 3
+  - task_name: P_R2 (OpAmp)
+    type: element_power
+    target: R2
+    num_sets: 3
+  - task_name: P_E_opamp (OpAmp)
+    type: element_power
+    target: E_opamp
+    num_sets: 3
+    user_param_override_values: # Added as per README example
+        R2_val: 5000
+    stop_on_first_mismatch: false
+  - task_name: Malformed Task Example (OpAmp) # To show error skipping
+    type: node_voltage
+    # Deliberately missing 'target'
+    task_name_typo: This task name is also slightly different for test
+    num_sets: 1
